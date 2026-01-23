@@ -18,3 +18,15 @@
 #define REG_ACCEL_XOUT_H    0x2D
 #define GYRO_SCALE          32.8     // For +/- 1000 dps
 #define ACCEL_SCALE         16384.0  // For +/- 2g
+
+/*** CAMERA ***/
+#define CALIB_DIR           "../data/calib/checker-35mm-9-7/"
+#define CALIB_PATH          "../data/calib/stereo_calib.yml"
+#define CALIB_W             9       // Inner corners
+#define CALIB_H             7
+#define CALIB_MM            35
+
+#define W_PX                640
+#define H_PX                480
+#define LEFT_CAM_ID         0
+#define RIGHT_CAM_ID        1

@@ -7,6 +7,7 @@
 
 #include "defs.h"
 #include "consts.h"
+#include "helpers.h"
 #include <chrono>
 #include <sys/ioctl.h>
 #include <fcntl.h>
@@ -69,9 +70,7 @@ public:
         if (::read (fd, data, 12) != 12)
             throw std::runtime_error ("Incomplete IMU read"); 
 
-        auto tse = std::chrono::steady_clock::now ().time_since_epoch ();
-        auto tse_ns = std::chrono::duration_cast<std::chrono::nanoseconds> (tse);
-        out.time_ns = tse_ns.count ();
+        out.time_ns = get_time_ns ();
 
         // Convert bytes to data_t
         auto combine = [] (byte_t high, byte_t low)
