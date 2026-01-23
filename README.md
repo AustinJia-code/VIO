@@ -1,3 +1,14 @@
+### Build:
+```
+cd build
+cmake ..
+make
+```
+
+### Run:
+```
+```
+
 ### Software
 - [ ] Sensor synchronization
 - [ ] Rolling shutter correction
