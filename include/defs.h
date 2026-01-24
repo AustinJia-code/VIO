@@ -21,8 +21,8 @@ using data_t = float;
 struct Pose                 // Pose
 {
     ns_t time_ns;
-    Eigen::Vector3d pos;
-    Eigen::Quaterniond rot;
+    Eigen::Vector3d pos;    // Eigen stores as doubles, we use float
+    Eigen::Quaterniond rot; // All quats stored as {x, y, z, w}
 };
 
 struct CamData              // Cam data

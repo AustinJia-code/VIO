@@ -6,7 +6,10 @@
 #include "defs.h"
 #include <unistd.h>
 
+#include "ekf.hpp"
+
 int main ()
 {
+    EKF ekf;
     return EXIT_SUCCESS;
 }

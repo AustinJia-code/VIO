@@ -75,9 +75,9 @@ int main()
             cv::cvtColor (right, gray_r, cv::COLOR_BGR2GRAY);
 
             cv::cornerSubPix (gray_l, corners_l, cv::Size (11, 11), cv::Size (-1, -1),
-                              cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::COUNT, 30, 0.01));
+                              cv::TermCriteria (cv::TermCriteria::EPS + cv::TermCriteria::COUNT, 30, 0.01));
             cv::cornerSubPix (gray_r, corners_r, cv::Size (11, 11), cv::Size (-1, -1),
-                              cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::COUNT, 30, 0.01));
+                              cv::TermCriteria (cv::TermCriteria::EPS + cv::TermCriteria::COUNT, 30, 0.01));
 
             img_pts_l.push_back (corners_l);
             img_pts_r.push_back (corners_r);
