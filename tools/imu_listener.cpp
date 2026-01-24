@@ -21,6 +21,6 @@ int main ()
                   << "Gyro: \n" << imu_raw.gyro << "\n"
                   << std::endl;
         
-        usleep (us_t {100000});
+        usleep (sec_to_us (sec_t {0.1}));
     }
 }

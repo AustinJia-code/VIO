@@ -18,6 +18,9 @@ private:
 
     const Eigen::Vector3d G_vec = {0, 0, -G};
 
+    ns_t last_ns;
+    ns_t last_pred_ns;
+
 public:
     /**
      * Constructor
@@ -35,8 +38,15 @@ public:
     /**
      * Predict with raw IMU data (relative)
      */ 
-    void predict (const IMUData& data, double dt)
+    void predict (const IMUData& data)
     {
+        if (!data.dirty)
+            return;
+
+        ns_t dt = data.time_ns - last_pred_ns;
+        if (dt == 0)
+            return;
+            
         Eigen::Vector3d pos = x.segment<3> (0);
         Eigen::Vector3d vel = x.segment<3> (3);
         Eigen::Quaterniond q (x (9), x (6), x (7), x (8)); // w, x, y, z
@@ -71,13 +81,18 @@ public:
 
         // Add uncertainty
         P += Q;
+        last_ns = data.time_ns;
+        last_pred_ns = last_ns;
     }
     
     /**
      * Update with processed Cam pose ("absolute")
      */
-    void update (const Pose& pose, double confidence)
+    void update (const Pose& pose)
     {
+        if (!pose.dirty)
+            return;
+
         Eigen::Vector3d pos_err = pose.pos - x.segment<3> (0);
 
         Eigen::Quaterniond q_pred (x (9), x (6), x (7), x (8));
@@ -104,5 +119,16 @@ public:
 
         // Remove uncertainty
         P.diagonal () *= (1.0 - k);
+        last_ns = get_time_ns ();
+    }
+
+    /**
+     * Get current pose estimate
+     */
+    void get_estimate (Pose& out) const
+    {
+        out.time_ns = last_ns;
+        out.pos = x.segment<3> (0);
+        out.rot = Eigen::Quaterniond (x (9), x (6), x (7), x (8));
     }
 };

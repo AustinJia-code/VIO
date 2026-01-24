@@ -67,11 +67,16 @@ public:
     }
 
     /**
-     * Store undistorted and rectified caps into outs
-     * @warning check that data was written, not guarunteed
+     * Clean outputs, then store undistorted and rectified caps
+     * 
+     * @note Always reads left before right
+     * @warning Check CamData dirty bits for success
      */
     void read (CamData& left_out, CamData& right_out)
     {
+        left_out = {};
+        right_out = {};
+        
         // Synchronized grab
         if (!left_cam.grab ())
             return;
@@ -86,7 +91,10 @@ public:
         right_cam.retrieve (raw_r);
 
         cv::remap (raw_l, left_out.img, map1_l, map2_l, cv::INTER_LINEAR);
+        left_out.dirty = true;
+
         cv::remap (raw_r, right_out.img, map1_r, map2_r, cv::INTER_LINEAR);
+        right_out.dirty = true;
     }
 
     /**

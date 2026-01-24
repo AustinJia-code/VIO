@@ -9,7 +9,7 @@
 #define G                   9.80665
 
 /*** ICM-20948 ***/
-#define IMU_PATH            "/dev/i2c-1"
+#define I2C_PATH            "/dev/i2c-1"
 #define I2C_SLAVE	        0x0703
 #define ICM_ADDR            0x68
 #define REG_BANK_SEL        0x7F

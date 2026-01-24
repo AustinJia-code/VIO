@@ -7,6 +7,7 @@
 
 #include "defs.h"
 #include "consts.h"
+#include <unistd.h>
 #include <opencv2/features2d.hpp>
 #include <vector>
 
@@ -56,18 +57,25 @@ public:
 
     /**
      * Match features and triangulate for depth
-     * Stores change in pose from last invocation into out
+     * Cleans out, then stores change in pose from last invocation
      * 
-     * @warning Check out for data before using, not guarunteed
+     * @warning Check out.dirty, modify not guaranteed
      */
-    void match (const cv::Mat& left_img, const cv::Mat& right_img,
-                Pose& out)
+    void match (const CamData& lcam_data, const CamData& rcam_data, Pose& out)
     {
+        // TODO: Minimum time diff between left and right img?
+        out = {};
+
+        const cv::Mat& left_img = lcam_data.img;
+        const cv::Mat& right_img = rcam_data.img;
+
         std::vector<cv::KeyPoint> left_kp, right_kp;
         cv::Mat left_desc, right_desc;
 
-        detector->detectAndCompute (left_img, cv::noArray (), left_kp, left_desc);
-        detector->detectAndCompute (right_img, cv::noArray (), right_kp, right_desc);
+        detector->detectAndCompute (left_img, cv::noArray (),
+                                    left_kp, left_desc);
+        detector->detectAndCompute (right_img, cv::noArray (),
+                                    right_kp, right_desc);
 
         // No good features
         if (left_desc.empty () || right_desc.empty ())
@@ -160,10 +168,16 @@ public:
         for (int i = 0; i < 3; i++)
             for (int j = 0; j < 3; j++)
                 eigen_R (i,j) = R.at<double> (i,j);
-                    
+        
         out.pos = Eigen::Vector3d (tvec.at<double> (0),
                                    tvec.at<double> (1),
                                    tvec.at<double> (2));
         out.rot = Eigen::Quaterniond (eigen_R);
+
+        // Left time always smaller than right time
+        out.time_ns = lcam_data.time_ns + ((rcam_data.time_ns -
+                                            lcam_data.time_ns) / 2);
+
+        out.dirty = true;
     }
 };

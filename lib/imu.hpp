@@ -1,6 +1,7 @@
 /**
  * @file imu.hpp
  * @brief Raw IMU interface
+ * @cite https://files.waveshare.com/upload/1/18/DS-000189-ICM-20948-v1.3.pdf
  */
 
 #pragma once
@@ -13,6 +14,7 @@
 #include <fcntl.h>
 #include <stdexcept>
 #include <math.h>
+#include <unistd.h>
 
 /**
  * IMU odometer interface
@@ -27,10 +29,7 @@ private:
      */
     void write_byte (byte_t reg, byte_t val)
     { 
-        if (ioctl (fd, I2C_SLAVE, ICM_ADDR) < 0)
-            throw std::runtime_error ("Failed to acquire bus access");
-
-        uint8_t buf[2] = {reg, val};
+        byte_t buf[2] = {reg, val};
         
         if (write (fd, buf, 2) != 2)
             throw std::runtime_error ("I2C write incomplete");
@@ -42,24 +41,29 @@ public:
      */
     IMU ()
     {
-        if ((fd = open (IMU_PATH, O_RDWR)) < 0)
+        if ((fd = open (I2C_PATH, O_RDWR)) < 0)
             throw std::runtime_error ("Could not open I2C bus");
+
+        // Set IMU as device
+        if (ioctl (fd, I2C_SLAVE, ICM_ADDR) < 0)
+            throw std::runtime_error ("Failed to acquire bus access");
         
         // Wake up sensor, set bank 0
         write_byte (REG_BANK_SEL, 0x00);
         write_byte (REG_PWR_MGMT_1, 0x01);
 
-        usleep (us_t {100000});
+        // Let sensor wake up
+        usleep (sec_to_us (sec_t (0.1)));
     }
 
     /**
      * Read a set of IMU data into out
+     * @warning Catch runtime errors
      */
     void read (IMUData& out)
     {
-        if (ioctl (fd, I2C_SLAVE, ICM_ADDR) < 0)
-            throw std::runtime_error ("Failed to acquire bus access");
-
+        out = {};
+        
         byte_t reg = REG_ACCEL_XOUT_H;
         byte_t data[12]; // 3 axes accel + 3 axes gyro (2 bytes each)
 
@@ -84,9 +88,13 @@ public:
         out.accel.z () = (combine (data[4], data[5]) / ACCEL_SCALE) * G;
 
         // Gyroscope (Convert to rad/s)
-        out.gyro.x () = (combine (data[6], data[7]) / GYRO_SCALE) * (M_PI / 180.0);
-        out.gyro.y () = (combine (data[8], data[9]) / GYRO_SCALE) * (M_PI / 180.0);
-        out.gyro.z () = (combine (data[10], data[11]) / GYRO_SCALE) * (M_PI / 180.0);
+        out.gyro.x () = (combine (data[6], data[7]) / GYRO_SCALE) *
+                        (M_PI / 180.0);
+        out.gyro.y () = (combine (data[8], data[9]) / GYRO_SCALE) *
+                        (M_PI / 180.0);
+        out.gyro.z () = (combine (data[10], data[11]) / GYRO_SCALE) *
+                        (M_PI / 180.0);
+        out.dirty = true;
     }
 
     /**
@@ -94,6 +102,7 @@ public:
      */
     ~IMU ()
     {
-        close (fd); 
+        if (fd > -1)
+            close (fd); 
     }
 };
