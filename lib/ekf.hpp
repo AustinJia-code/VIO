@@ -10,9 +10,9 @@
 class EKF
 {
 private:
-    Eigen::VectorXd x;  // State: [pos, vel, rot, accel_bias, gyro_bias]
-    Eigen::MatrixXd P;  // Covariance Matrix
-    Eigen::MatrixXd Q;  // Process Noise
+    Eigen::Matrix<double, 15, 1> x;   // [pos, vel, rot, accel_bias, gyro_bias]
+    Eigen::Matrix<double, 16, 16> P;  // Covariance Matrix (rot quaternion)
+    Eigen::Matrix<double, 15, 15> Q;  // Process Noise
 
 public:
     /**
@@ -20,8 +20,8 @@ public:
      */
     EKF ()
     {
-        x.setZero (15);             // 5 x 3D vectors
-        P.setIdentity (15, 15);
+        x.setZero ();
+        P.setIdentity ();
     }
     
     /**

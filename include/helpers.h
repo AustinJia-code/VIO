@@ -11,7 +11,7 @@
 /**
  * Get current time in nanoseconds
  */
-inline static ns_t get_time_ns ()
+static inline ns_t get_time_ns ()
 {
     auto now = std::chrono::steady_clock::now ();
     return ns_t {std::chrono::duration_cast<std::chrono::nanoseconds> (

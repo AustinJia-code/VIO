@@ -10,7 +10,6 @@
 
 /*** ICM-20948 ***/
 #define IMU_PATH            "/dev/i2c-1"
-#define O_RDWR              02
 #define I2C_SLAVE	        0x0703
 #define ICM_ADDR            0x68
 #define REG_BANK_SEL        0x7F
@@ -30,3 +29,8 @@
 #define H_PX                480
 #define LEFT_CAM_ID         0
 #define RIGHT_CAM_ID        1
+
+/*** MATCHER ***/
+#define FEATURE_N           500
+#define Y_TOL_PX            2
+#define MIN_MATCHES         8

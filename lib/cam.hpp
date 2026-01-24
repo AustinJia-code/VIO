@@ -56,8 +56,8 @@ public:
         if (!left_cam.isOpened ())
             throw std::runtime_error ("Could not open left camera");
         
-        right_cam.open (RIGHT_CAM_ID, cv::CAP _V4L2); 
-        if (!leftright_cam_cam.isOpened ())
+        right_cam.open (RIGHT_CAM_ID, cv::CAP_V4L2); 
+        if (!right_cam.isOpened ())
             throw std::runtime_error ("Could not open right camera");
 
         left_cam.set (cv::CAP_PROP_FRAME_WIDTH, W_PX);
@@ -68,13 +68,13 @@ public:
 
     /**
      * Store undistorted and rectified caps into outs
-     * @warning check that data was written, not gaurunteed
+     * @warning check that data was written, not guarunteed
      */
     void read (CamData& left_out, CamData& right_out)
     {
         // Synchronized grab
         if (!left_cam.grab ())
-            return
+            return;
         left_out.time_ns = get_time_ns ();
         
         if (!right_cam.grab ())
@@ -85,7 +85,16 @@ public:
         left_cam.retrieve (raw_l);
         right_cam.retrieve (raw_r);
 
-        cv::remap (raw_l, left_out.image, map1_l, map2_l, cv::INTER_LINEAR);
-        cv::remap (raw_r, right_out.image, map1_r, map2_r, cv::INTER_LINEAR);
+        cv::remap (raw_l, left_out.img, map1_l, map2_l, cv::INTER_LINEAR);
+        cv::remap (raw_r, right_out.img, map1_r, map2_r, cv::INTER_LINEAR);
+    }
+
+    /**
+     * Cleanup
+     */
+    ~Cam ()
+    {
+        left_cam.release ();
+        right_cam.release ();
     }
 };

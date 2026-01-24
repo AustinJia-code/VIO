@@ -1,5 +1,5 @@
 /**
- * @file capture_calib.cpp
+ * @file stereo_capture.cpp
  * @brief Capture tool for RPi5 Stereo Calibration
  */
 

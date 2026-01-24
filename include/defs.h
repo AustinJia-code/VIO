@@ -9,7 +9,9 @@
 #include <opencv2/opencv.hpp>
 
 /*** TYPEDEFS ***/
-using ns_t = u_int64_t;     // Nanoseconds
+using ns_t = int64_t;       // Nanoseconds
+using us_t = int64_t;       // Microseconds
+using ms_t = int64_t;       // Milliseconds
 using sec_t = double;       // Seconds
 using byte_t = u_int8_t;
 using data_t = float;

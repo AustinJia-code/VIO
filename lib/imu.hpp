@@ -49,7 +49,7 @@ public:
         write_byte (REG_BANK_SEL, 0x00);
         write_byte (REG_PWR_MGMT_1, 0x01);
 
-        sleep (sec_t {0.1});
+        usleep (us_t {100000});
     }
 
     /**
@@ -87,5 +87,13 @@ public:
         out.gyro.x () = (combine (data[6], data[7]) / GYRO_SCALE) * (M_PI / 180.0);
         out.gyro.y () = (combine (data[8], data[9]) / GYRO_SCALE) * (M_PI / 180.0);
         out.gyro.z () = (combine (data[10], data[11]) / GYRO_SCALE) * (M_PI / 180.0);
+    }
+
+    /**
+     * Clean up
+     */
+    ~IMU ()
+    {
+        close (fd); 
     }
 };

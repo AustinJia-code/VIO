@@ -32,6 +32,9 @@ target_link_libraries (vio PRIVATE vio_core)
 add_executable (imu_listener tools/imu_listener.cpp)
 target_link_libraries (imu_listener PRIVATE vio_core)
 
+add_executable (camera_listener tools/camera_listener.cpp)
+target_link_libraries (camera_listener PRIVATE vio_core)
+
 add_executable (stereo_calib tools/stereo_calib.cpp)
 target_link_libraries (stereo_calib PRIVATE vio_core)
 
