@@ -43,9 +43,13 @@ public:
         if (!data.dirty)
             return;
 
-        ns_t dt = data.time_ns - last_pred_ns;
-        if (dt == 0)
+        ns_t dt = ns_to_sec (data.time_ns - last_pred_ns);
+        // If time travel or big jump, don't risk integration
+        if (dt <= 0 || dt > 0.1)
+        {
+            last_pred_ns = data.time_ns;
             return;
+        }
             
         Eigen::Vector3d pos = x.segment<3> (0);
         Eigen::Vector3d vel = x.segment<3> (3);
@@ -80,7 +84,7 @@ public:
         x (9) = q.w ();
 
         // Add uncertainty
-        P += Q;
+        P += Q * dt;
         last_ns = data.time_ns;
         last_pred_ns = last_ns;
     }

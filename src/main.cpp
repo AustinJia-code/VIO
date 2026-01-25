@@ -48,7 +48,7 @@ int main ()
         cam.read (lcam_data, rcam_data);
 
         // If we dont get images, sleep to avoid spinning and cont
-        if (lcam_data.dirty && rcam_data.dirty)
+        if (!lcam_data.dirty && !rcam_data.dirty)
         {
             usleep (sec_to_us (sec_t {0.001}));
             continue;
