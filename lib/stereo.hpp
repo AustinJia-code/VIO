@@ -1,5 +1,5 @@
 /**
- * @file cam.hpp
+ * @file stereo.hpp
  * @brief Raw stereo amera interface
  * @cite https://www.waveshare.com/wiki/IMX219-83_Stereo_Camera
  * @note According to the wiki, the frames not hardware synched with each other,
@@ -14,8 +14,9 @@
 #include <stdexcept>
 #include <chrono>
 #include <opencv2/opencv.hpp>
+#include <optional>
 
-class Cam
+class Stereo
 {
 private:
     cv::VideoCapture left_cam;
@@ -28,7 +29,7 @@ public:
     /**
      * Initialize
      */
-    Cam ()
+    Stereo ()
     {
         // Load calibration
         cv::FileStorage fs (CALIB_PATH, cv::FileStorage::READ);
@@ -67,23 +68,21 @@ public:
     }
 
     /**
-     * Clean outputs, then store undistorted and rectified caps
-     * 
-     * @note Always reads left before right
-     * @warning Check CamData dirty bits for success
+     * Store undistorted and rectified captures
+     * @warning optional
      */
-    void read (CamData& left_out, CamData& right_out)
+    std::optional<std::pair<CamData, CamData>> read ()
     {
-        left_out = {};
-        right_out = {};
+        CamData left_out;
+        CamData right_out;
         
         // Synchronized grab
         if (!left_cam.grab ())
-            return;
+            return std::nullopt;
         left_out.time_ns = get_time_ns ();
         
         if (!right_cam.grab ())
-            return;
+            return std::nullopt;
         right_out.time_ns = get_time_ns ();
 
         cv::Mat raw_l, raw_r;
@@ -91,16 +90,15 @@ public:
         right_cam.retrieve (raw_r);
 
         cv::remap (raw_l, left_out.img, map1_l, map2_l, cv::INTER_LINEAR);
-        left_out.dirty = true;
-
         cv::remap (raw_r, right_out.img, map1_r, map2_r, cv::INTER_LINEAR);
-        right_out.dirty = true;
+
+        return {std::make_pair (std::move (left_out), std::move (right_out))};
     }
 
     /**
      * Cleanup
      */
-    ~Cam ()
+    ~Stereo ()
     {
         left_cam.release ();
         right_cam.release ();

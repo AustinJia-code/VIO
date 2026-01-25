@@ -13,13 +13,13 @@ int main ()
 
     while (true)
     {
-        IMUData imu_raw = {};
-        imu.read (imu_raw);
+        auto imu_raw = imu.read ();
 
-        std::cout << "Nanosecs: \n" << imu_raw.time_ns << "\n"
-                  << "Accel: \n" << imu_raw.accel << "\n"
-                  << "Gyro: \n" << imu_raw.gyro << "\n"
-                  << std::endl;
+        if (imu_raw)
+            std::cout << "Nanosecs: \n" << imu_raw->time_ns << "\n"
+                    << "Accel: \n" << imu_raw->accel << "\n"
+                    << "Gyro: \n" << imu_raw->gyro << "\n"
+                    << std::endl;
         
         usleep (sec_to_us (sec_t {0.1}));
     }

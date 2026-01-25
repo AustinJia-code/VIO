@@ -18,7 +18,7 @@
 #define GYRO_SCALE          32.8     // For +/- 1000 dps
 #define ACCEL_SCALE         16384.0  // For +/- 2g
 
-/*** CAMERA ***/
+/*** STEREO ***/
 #define CALIB_DIR           "../data/calib/checker-35mm-9-7/"
 #define CALIB_PATH          "../data/calib/stereo_calib.yml"
 #define CALIB_W             9       // Inner corners

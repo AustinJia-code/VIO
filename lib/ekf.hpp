@@ -1,6 +1,6 @@
 /**
  * @file ekf.hpp
- * @brief Combines IMU and Cam using an EKF
+ * @brief Combines IMU and Stereo using an EKF
  */
 
 #pragma once
@@ -40,9 +40,6 @@ public:
      */ 
     void predict (const IMUData& data)
     {
-        if (!data.dirty)
-            return;
-
         ns_t dt = ns_to_sec (data.time_ns - last_pred_ns);
         // If time travel or big jump, don't risk integration
         if (dt <= 0 || dt > 0.1)
@@ -90,13 +87,10 @@ public:
     }
     
     /**
-     * Update with processed Cam pose ("absolute")
+     * Update with processed Stereo pose ("absolute")
      */
     void update (const Pose& pose)
     {
-        if (!pose.dirty)
-            return;
-
         Eigen::Vector3d pos_err = pose.pos - x.segment<3> (0);
 
         Eigen::Quaterniond q_pred (x (9), x (6), x (7), x (8));
@@ -129,10 +123,13 @@ public:
     /**
      * Get current pose estimate
      */
-    void get_estimate (Pose& out) const
+    Pose get_estimate () const
     {
+        Pose out = {};
         out.time_ns = last_ns;
         out.pos = x.segment<3> (0);
         out.rot = Eigen::Quaterniond (x (9), x (6), x (7), x (8));
+
+        return out;
     }
 };

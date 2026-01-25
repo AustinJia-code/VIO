@@ -21,24 +21,23 @@ using data_t = float;
 /**
  * Generic data container
  */
-struct DataContainer
+struct TimedData
 {
     ns_t time_ns;
-    bool dirty;
 };
 
-struct Pose : public DataContainer 
+struct Pose : public TimedData 
 {
     Eigen::Vector3d pos;    // Eigen stores as doubles, we use float
     Eigen::Quaterniond rot; // All quats stored as {x, y, z, w}
 };
 
-struct CamData : public DataContainer
+struct CamData : public TimedData
 {
     cv::Mat img;
 };
 
-struct IMUData : DataContainer
+struct IMUData : TimedData
 {
     Eigen::Vector3d accel;
     Eigen::Vector3d gyro;

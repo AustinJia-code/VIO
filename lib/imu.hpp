@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <math.h>
 #include <unistd.h>
+#include <optional>
 
 /**
  * IMU odometer interface
@@ -57,23 +58,22 @@ public:
     }
 
     /**
-     * Read a set of IMU data into out
-     * @warning Catch runtime errors
+     * Read IMU data from I2C
+     * @warning optional
      */
-    void read (IMUData& out)
-    {
-        out = {};
-        
+    std::optional<IMUData> read ()
+    {        
         byte_t reg = REG_ACCEL_XOUT_H;
         byte_t data[12]; // 3 axes accel + 3 axes gyro (2 bytes each)
 
         // Burst read start
         if (write (fd, &reg, 1) != 1)
-            throw std::runtime_error ("Incomplete IMU write");
+            return std::nullopt;
 
         if (::read (fd, data, 12) != 12)
-            throw std::runtime_error ("Incomplete IMU read"); 
+            return std::nullopt;
 
+        IMUData out = {};
         out.time_ns = get_time_ns ();
 
         // Convert bytes to data_t
@@ -94,7 +94,8 @@ public:
                         (M_PI / 180.0);
         out.gyro.z () = (combine (data[10], data[11]) / GYRO_SCALE) *
                         (M_PI / 180.0);
-        out.dirty = true;
+        
+        return out;
     }
 
     /**

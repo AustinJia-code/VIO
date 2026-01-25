@@ -6,7 +6,7 @@
 #include <iostream>
 
 #include "imu.hpp"
-#include "cam.hpp"
+#include "stereo.hpp"
 #include "matcher.hpp"
 #include "ekf.hpp"
 #include "helpers.h"
@@ -19,7 +19,7 @@ int main ()
 {
     // Init
     IMU imu;
-    Cam cam;
+    Stereo cam;
     Matcher matcher;
     EKF ekf;
 
@@ -33,42 +33,35 @@ int main ()
 
     while (true)
     {
-        // Imu read and predict
-        try
-        {
-            imu.read (imu_data);
-            ekf.predict (imu_data);
-        }
-        catch (const std::exception& e)
-        {
-            // Pass
-        }
-        
-        // Camera 
-        cam.read (lcam_data, rcam_data);
+        /** IMU READ AND PREDICT **/
+        auto imu_opt = imu.read ();
+        if (imu_opt)
+            ekf.predict (*imu_opt);
 
-        // If we dont get images, sleep to avoid spinning and cont
-        if (!lcam_data.dirty && !rcam_data.dirty)
+        /** CAMERA READ AND PREDICT **/
+        auto frames_opt = cam.read ();
+        if (!frames_opt)
         {
             usleep (sec_to_us (sec_t {0.001}));
             continue;
         }
-            
-        // Matcher finds our motion between this frame and the last
-        matcher.match (lcam_data, rcam_data, cam_pose);
-        
-        // If the Matcher successfully found a pose, then update ekf
-        if (!cam_pose.dirty)
+
+        auto cam_est_opt = matcher.match (frames_opt->first,
+                                          frames_opt->second);
+        if (!cam_est_opt)
+        {
+            usleep (sec_to_us (sec_t {0.001}));
             continue;
+        }
         
-        ekf.update (cam_pose);
+        ekf.update (*cam_est_opt);
         
-        Pose estimate;
-        ekf.get_estimate (estimate);
+        /** GET ESTIMATE **/
+        Pose fused_estimate = ekf.get_estimate ();
         std::cout << "=== POSE ESTIMATE === \n"
-                  << "Time (Sec): " << ns_to_sec (estimate.time_ns) << "\n" 
-                  << "[X, Y, Z]: " << estimate.pos << "\n"
-                  << "[Roll, Pitch, Yaw]: " << quat_to_euler (estimate.rot)
+                  << "Time (Sec): " << ns_to_sec (fused_estimate.time_ns) << "\n" 
+                  << "[X, Y, Z]: " << fused_estimate.pos << "\n"
+                  << "[Roll, Pitch, Yaw]: " << quat_to_euler (fused_estimate.rot)
                   << std::endl;
     }
 
