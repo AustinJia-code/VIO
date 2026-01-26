@@ -42,7 +42,8 @@ public:
      */ 
     void predict (const IMUData& data)
     {
-        ns_t dt = ns_to_sec (data.time_ns - last_pred_ns);
+        sec_t dt = ns_to_sec (data.time_ns - last_pred_ns);
+        
         // If time travel or big jump, don't risk integration
         if (dt <= 0 || dt > 0.1)
         {
@@ -53,10 +54,9 @@ public:
         Eigen::Vector3d pos = x.segment<3> (0);
         Eigen::Vector3d vel = x.segment<3> (3);
         Eigen::Quaterniond q (x (9), x (6), x (7), x (8)); // w, x, y, z
-        Eigen::Vector3d accel_bias = x.segment<3> (10);
-        Eigen::Vector3d gyro_bias = x.segment<3> (13);
 
         // Accel to world frame using old rotation
+        Eigen::Vector3d accel_bias = x.segment<3> (10);
         Eigen::Vector3d accel_world = q * (data.accel - accel_bias) + G_vec;
 
         // p1 = p0 + v0 * dt + 0.5 * a0 * dt^2
@@ -65,6 +65,7 @@ public:
         Eigen::Vector3d new_vel = vel + accel_world * dt;
 
         // Integrate gyro for rotation
+        Eigen::Vector3d gyro_bias = x.segment<3> (13);
         Eigen::Vector3d omega = (data.gyro - gyro_bias) * dt;
         double angle_mag = omega.norm ();
         if (angle_mag > 1e-6)
@@ -119,7 +120,7 @@ public:
 
         // Remove uncertainty
         P.diagonal () *= (1.0 - k);
-        last_ns = get_time_ns ();
+        last_ns = pose.time_ns;
     }
 
     /**
@@ -133,5 +134,20 @@ public:
         out.rot = Eigen::Quaterniond (x (9), x (6), x (7), x (8));
 
         return out;
+    }
+
+    /**
+     * Set the state of the EKF
+     */
+    void set_state (const Eigen::Vector3d& pos, const Eigen::Vector3d& vel,
+                    const Eigen::Quaterniond& rot)
+    {
+        x.segment<3> (0) = pos;
+        x.segment<3> (3) = vel;
+
+        x (6) = rot.x ();
+        x (7) = rot.y ();
+        x (8) = rot.z ();
+        x (9) = rot.w ();
     }
 };

@@ -17,11 +17,15 @@ private:
     std::map<ns_t, Eigen::Vector3d> gt_map;
     std::vector<IMUData> imu_data_storage;
 
+    size_t imu_idx;
+
     std::string root;
 
 public:
     EurocPlayer (std::string path) : root (path)
     {
+        imu_idx = 0;
+
         std::ifstream file (root + "/cam0/data.csv");
         std::string line;
         std::getline (file, line); // header
@@ -105,7 +109,7 @@ public:
         }
     }
 
-    Eigen::Vector3d get_gt (ns_t ts)
+    Eigen::Vector3d get_gt (ns_t ts) const
     {
         // Find the closest timestamp in GT for this frame
         auto it = gt_map.lower_bound (ts);
@@ -115,9 +119,13 @@ public:
         return it->second;
     }
 
+    Eigen::Vector3d get_gt_init () const
+    {
+        return gt_map.begin ()->second;
+    }
+
     std::vector<IMUData> get_imu_until (ns_t ts)
     {
-        size_t imu_idx = 0;
         std::vector<IMUData> batch;
         
         while (imu_idx < imu_data_storage.size () &&
