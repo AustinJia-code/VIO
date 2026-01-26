@@ -43,3 +43,6 @@ target_link_libraries (stereo_calib PRIVATE vio_core)
 
 add_executable (stereo_capture tools/stereo_capture.cpp)
 target_link_libraries (stereo_capture PRIVATE vio_core)
+
+add_executable (kalman_tests tests/kalman_tests.cpp)
+target_link_libraries (kalman_tests PRIVATE vio_core)

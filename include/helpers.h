@@ -35,6 +35,14 @@ static inline sec_t ns_to_sec (const ns_t time_ns)
 }
 
 /**
+ * Seconds to nanoseconds
+ */
+static inline sec_t sec_to_ns (const sec_t time_ns)
+{
+    return ns_t (time_ns * 1e9); 
+}
+
+/**
  * Seconds to microseconds
  */
 static inline us_t sec_to_us (const sec_t time_s)

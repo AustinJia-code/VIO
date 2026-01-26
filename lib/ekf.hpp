@@ -80,6 +80,7 @@ public:
             Eigen::Quaterniond delta_q (
                 Eigen::AngleAxisd (angle_mag, omega.normalized ()));
             q *= delta_q;
+            q.normalize ();
         }
 
         // Store
@@ -151,5 +152,13 @@ public:
         x (7) = rot.y ();
         x (8) = rot.z ();
         x (9) = rot.w ();
+    }
+
+    // Set biases
+    void set_bias (const Eigen::Vector3d& accel_bias,
+                   const Eigen::Vector3d& gyro_bias)
+    {
+        x.segment<3> (10) = accel_bias;
+        x.segment<3> (13) = gyro_bias;
     }
 };

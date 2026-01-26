@@ -30,6 +30,12 @@ struct Pose : public TimedData
 {
     Eigen::Vector3d pos;    // Eigen stores as doubles, we use float
     Eigen::Quaterniond rot; // All quats stored as {x, y, z, w}
+
+    Pose ()
+    {
+        pos = Eigen::Vector3d::Zero ();
+        rot = Eigen::Quaterniond::Identity ();
+    }
 };
 
 struct CamData : public TimedData
@@ -41,4 +47,10 @@ struct IMUData : TimedData
 {
     Eigen::Vector3d accel;
     Eigen::Vector3d gyro;
+
+    IMUData ()
+    {
+        accel = Eigen::Vector3d::Zero ();
+        gyro = Eigen::Vector3d::Zero ();
+    }
 };
