@@ -1,3 +1,10 @@
+### Dataset Pipeline
+```
+pip install opencv-python
+pip install rosbags
+bash install.sh     // 12GB
+```
+
 ### Build:
 ```
 cd build
@@ -6,9 +13,8 @@ make
 ```
 
 ### Run:
-```
-./VIO
-```
+Live estimation: ```./live_play```
+Dataset playback: ```./data_play```
 
 ### Todo:
 * Improve EKF

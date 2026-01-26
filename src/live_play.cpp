@@ -1,6 +1,6 @@
 /**
- * @file main.cpp
- * @brief Runner for VIO
+ * @file live_play.cpp
+ * @brief Live runner for VIO on real hardware
  */
 
 #include <iostream>

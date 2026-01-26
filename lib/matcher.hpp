@@ -145,14 +145,14 @@ public:
     /**
      * Init
      */
-    Matcher ()
+    Matcher (const std::string& calib_path = CALIB_PATH)
     {
         detector = cv::ORB::create (FEATURE_N);
         matcher = cv::DescriptorMatcher::create (
             cv::DescriptorMatcher::BRUTEFORCE_HAMMING);
 
         // Load Q matrix from calibration yml
-        cv::FileStorage fs (CALIB_PATH, cv::FileStorage::READ);
+        cv::FileStorage fs (calib_path, cv::FileStorage::READ);
         if (!fs.isOpened ())
             throw std::runtime_error ("Failed to open calibration file");
 

@@ -8,6 +8,8 @@
 #include "defs.h"
 #include "consts.h"
 
+#include "helpers.h"
+
 class EKF
 {
 private:

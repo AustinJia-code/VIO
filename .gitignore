@@ -1,3 +1,4 @@
 /build/*
 /.venv/
 /.D219-9dof/
+/data/euroc_datasets/*

@@ -26,8 +26,11 @@ target_link_libraries (vio_core INTERFACE
 )
 
 # Executables
-add_executable (vio src/main.cpp)
-target_link_libraries (vio PRIVATE vio_core)
+add_executable (live_play src/live_play.cpp)
+target_link_libraries (live_play PRIVATE vio_core)
+
+add_executable (data_play src/data_play.cpp)
+target_link_libraries (data_play PRIVATE vio_core)
 
 add_executable (imu_listener tools/imu_listener.cpp)
 target_link_libraries (imu_listener PRIVATE vio_core)
