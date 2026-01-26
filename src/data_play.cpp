@@ -26,11 +26,15 @@ int main ()
     ns_t init_time = l.time_ns;
     Eigen::Vector3d init_pos = player.get_gt (current_ts);
 
-    auto imu_batch = player.get_imu_until (current_ts);
+    std::vector<IMUData> imu_batch = {};
 
-    while (imu_batch.size () < 50)
+    // Magic number from # still frames * 4 (about 4 imu samples per image)
+    while (imu_batch.size () < 1000)
     {
-        current_ts += sec_to_ns (sec_t {0.001});    // 1 ms
+        auto frames = player.get_next_stereo ();
+        auto [l, r] = *frames;
+        uint64_t current_ts = l.time_ns;
+
         auto new_batch = player.get_imu_until (current_ts);
         imu_batch.insert (imu_batch.end (),
                           new_batch.begin (), new_batch.end ());
