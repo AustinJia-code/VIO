@@ -55,6 +55,8 @@ int main ()
             );
 
             ekf.set_state (start_pos, Eigen::Vector3d::Zero (), init_rot);
+
+            matcher.initialize_pose (start_pos, init_rot);
             
             initialized = true;
             std::cout << "EKF Initialized! Pos: " << start_pos.transpose() 
@@ -66,10 +68,10 @@ int main ()
             ekf.predict(imu);
 
         // Process Vision
-        // auto delta_pose = matcher.match (l, r);
+        auto cam_pose = matcher.match (l, r);
         
-        // if (delta_pose)
-        //     ekf.update(*delta_pose);
+        if (cam_pose)
+            ekf.update (*cam_pose);
 
         // Compare with Ground Truth
         Pose fused_state = ekf.get_estimate ();

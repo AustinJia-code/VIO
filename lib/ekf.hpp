@@ -35,6 +35,13 @@ public:
 
         Q.setZero ();                   // TODO: Tune
         Q.diagonal () += Eigen::VectorXd::Constant (15, 0.001);
+
+        Q.setZero ();
+        Q.block<3,3> (0,0) = Eigen::Matrix3d::Identity () * 0.01;  // position
+        Q.block<3,3> (3,3) = Eigen::Matrix3d::Identity () * 0.05;  // velocity  
+        Q.block<3,3> (6,6) = Eigen::Matrix3d::Identity () * 0.02;  // rotation
+        Q.block<3,3> (9,9) = Eigen::Matrix3d::Identity () * 0.001; // accel bias
+        Q.block<3,3> (12,12) = Eigen::Matrix3d::Identity () * 0.001; // gyro bias
     }
     
     /**
@@ -90,37 +97,32 @@ public:
     }
     
     /**
-     * Update with processed Stereo pose ("absolute")
+     * Update with ABSOLUTE camera pose in world frame
      */
-    void update (const Pose& pose)
+    void update (const Pose& cam_absolute_pose)
     {
-        Eigen::Vector3d pos_err = pose.pos - x.segment<3> (0);
+        Eigen::Vector3d pos_err = cam_absolute_pose.pos - x.segment<3> (0);
 
-        Eigen::Quaterniond q_pred (x (9), x (6), x (7), x (8));
-        Eigen::Quaterniond q_meas = pose.rot;
-        Eigen::Quaterniond q_err = q_meas * q_pred.inverse ();
+        Eigen::Quaterniond q_ekf (x (9), x (6), x (7), x (8));
+        Eigen::Quaterniond q_cam = cam_absolute_pose.rot;
+        
+        // Kalman gain (trust camera less than IMU for short-term)
+        double k_pos = 0.2;  // 20% trust in camera position
+        double k_rot = 0.3;  // 30% trust in camera rotation
+        
+        // Weighted update
+        x.segment<3> (0) += k_pos * pos_err;
 
-        // Kalman Gain
-        // TODO: K = P * H' * (H * P * H' + R)^-1
-        // R = measurement noise
-        double R_pos = 0.01;    // 1cm uncertainty
-        double R_rot = 0.02;    // Small radian uncertainty
+        Eigen::Quaterniond q_fused = q_ekf.slerp (k_rot, q_cam);
+        q_fused.normalize ();
+        
+        x (6) = q_fused.x ();
+        x (7) = q_fused.y (); 
+        x (8) = q_fused.z ();
+        x (9) = q_fused.w ();
 
-        // Camera trust gain
-        double k = 0.8;
-
-        x.segment<3> (0) += k * pos_err;
-
-        // Slerp for smooth rotation mean
-        Eigen::Quaterniond q_slerp = q_pred.slerp (k, q_meas);
-        x (6) = q_slerp.x ();
-        x (7) = q_slerp.y (); 
-        x (8) = q_slerp.z ();
-        x (9) = q_slerp.w ();
-
-        // Remove uncertainty
-        P.diagonal () *= (1.0 - k);
-        last_ns = pose.time_ns;
+        P.diagonal () *= (1.0 - 0.5 * k_pos);
+        last_ns = cam_absolute_pose.time_ns;
     }
 
     /**

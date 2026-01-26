@@ -37,6 +37,11 @@ private:
     std::vector<Feature> prev_fts;
     cv::Mat prev_descs;
 
+    // Separate camera tracking b/c ransac returns translation
+    Eigen::Vector3d cam_world_pos;
+    Eigen::Quaterniond cam_world_rot;
+    bool cam_initialized;
+
     /**
      * Feature extraction and matching with previous descriptors
      * @attention Get a load of this function header :-(
@@ -133,7 +138,7 @@ private:
             cv::Rodrigues (rvec, R);
             Eigen::Matrix3d eigen_R;
             cv::cv2eigen (R, eigen_R);
-            p.rot = Eigen::Quaterniond (eigen_R);
+            p.rot = Eigen::Quaterniond (eigen_R).inverse ();
             
             return p;
         }
@@ -160,10 +165,24 @@ public:
         fs["D1"] >> D1;
         fs["Q"] >> Q;
         fs.release ();
+
+        cam_world_pos = Eigen::Vector3d::Zero ();
+        cam_world_rot = Eigen::Quaterniond::Identity ();
+        cam_initialized = false;
     }
 
     /**
-     * Returns change in pose from last invocation
+     * Initialize camera pose from EKF (call this once at startup)
+     */
+    void initialize_pose (const Eigen::Vector3d& pos, const Eigen::Quaterniond& rot)
+    {
+        cam_world_pos = pos;
+        cam_world_rot = rot;
+        cam_initialized = true;
+    }
+
+    /**
+     * Returns ABSOLUTE camera pose in world frame
      * @warning optional
      */
     std::optional<Pose> match (const CamData& l_cd, const CamData& r_cd)
@@ -171,28 +190,41 @@ public:
         cv::Mat l_desc;
         std::vector<cv::DMatch> stereo_matches;
 
-        // Get features
         auto [l_kp, r_kp] = extract_and_stereo_match (l_cd, r_cd, l_desc,
                                                       stereo_matches);
         if (stereo_matches.empty ())
             return std::nullopt;
 
-        // Triangulate
         auto cur_fts = triangulate (stereo_matches, l_kp, r_kp, l_desc);
 
-        // Estimate Motion
-        auto pose_opt = estimate_motion (l_kp, l_desc);
+        // Get RELATIVE motion from previous camera frame
+        auto relative_motion = estimate_motion (l_kp, l_desc);
 
-        // Save stuff
+        // Save features for next frame
         if (!cur_fts.empty ())
         {
             prev_descs = std::move (l_desc); 
             prev_fts = std::move (cur_fts);
         }
 
-        if (pose_opt)
-            pose_opt->time_ns = l_cd.time_ns + (r_cd.time_ns - l_cd.time_ns) / 2;
+        if (!relative_motion || !cam_initialized)
+            return std::nullopt;
 
-        return pose_opt;
+        // Accumulate relative motion into absolute world pose
+        // Transform camera-frame delta into world frame
+        Eigen::Vector3d delta_world = cam_world_rot * relative_motion->pos;
+        cam_world_pos += delta_world;
+        
+        // Compose rotations
+        cam_world_rot = cam_world_rot * relative_motion->rot;
+        cam_world_rot.normalize ();
+
+        // Return ABSOLUTE pose
+        Pose absolute_pose;
+        absolute_pose.time_ns = l_cd.time_ns + (r_cd.time_ns - l_cd.time_ns) / 2;
+        absolute_pose.pos = cam_world_pos;
+        absolute_pose.rot = cam_world_rot;
+
+        return absolute_pose;
     }
 };
