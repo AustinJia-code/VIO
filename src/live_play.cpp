@@ -7,20 +7,20 @@
 
 #include "imu.hpp"
 #include "stereo.hpp"
-#include "matcher.hpp"
+#include "feature_tracker.hpp"
 #include "ekf.hpp"
 #include "helpers.h"
 
 /**
  * Read from imu and cam, fuse imu integration and cam feature 
- * match estimations with EKF.
+ * get_pose estimations with EKF.
  */
 int main ()
 {
     // Init
     IMU imu;
     Stereo cam;
-    Matcher matcher;
+    FeatureTracker feature_tracker;
     EKF ekf;
 
     IMUData imu_data;
@@ -46,8 +46,8 @@ int main ()
             continue;
         }
 
-        auto cam_est_opt = matcher.match (frames_opt->first,
-                                          frames_opt->second);
+        auto cam_est_opt = feature_tracker.get_pose (frames_opt->first,
+                                                     frames_opt->second);
         if (!cam_est_opt)
         {
             usleep (sec_to_us (sec_t {0.001}));

@@ -3,7 +3,7 @@
  * @brief Dataset runner for VIO
  */
 
-#include "matcher.hpp"
+#include "feature_tracker.hpp"
 #include "euroc_player.hpp"
 #include "ekf.hpp"
 #include "helpers.h"
@@ -13,7 +13,7 @@ int main ()
 {
     std::string data_path = "../data/euroc_datasets/machine_hall/MH_01_easy/mav0";
     
-    Matcher matcher ("../data/calib/euroc_calib.yaml");
+    FeatureTracker feature_tracker ("../data/calib/euroc_calib.yaml");
     EurocPlayer player (data_path);
     EKF ekf;
 
@@ -56,7 +56,7 @@ int main ()
 
             ekf.set_state (start_pos, Eigen::Vector3d::Zero (), init_rot);
 
-            matcher.initialize_pose (start_pos, init_rot);
+            feature_tracker.initialize_pose (start_pos, init_rot);
             
             initialized = true;
             std::cout << "EKF Initialized! Pos: " << start_pos.transpose() 
@@ -64,12 +64,13 @@ int main ()
             continue;
         }
 
-        for (const IMUData& imu : imu_batch)
-            ekf.predict(imu);
+        // for (const IMUData& imu : imu_batch)
+        //     ekf.predict(imu);
 
         // Process Vision
-        auto cam_pose = matcher.match (l, r);
-        
+        auto cam_pose = feature_tracker.get_pose (l, r);
+        std::cout << cam_pose->pos << "\n" 
+                  << cam_pose->rot << std::endl;
         if (cam_pose)
             ekf.update (*cam_pose);
 
@@ -79,8 +80,7 @@ int main ()
 
         double drift = (fused_state.pos - gt_pos).norm ();
 
-        std::cout << "TS: " << std::fixed  << std::setprecision (5) 
-                            << ns_to_sec (current_ts - init_ts) 
+        std::cout << "TS: " << current_ts 
                   << " | EKF Pos: " << fused_state.pos.transpose () 
                   << " | GT: " << gt_pos.transpose () 
                   << " | Drift: " << drift << "m" << std::endl;

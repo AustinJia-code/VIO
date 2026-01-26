@@ -1,6 +1,6 @@
 /**
- * @file matcher.hpp
- * @brief Handles depth and sparse feature matching
+ * @file feature_tracker.hpp
+ * @brief Handles feature tracking and visual odometry
  */
 
 #pragma once
@@ -26,9 +26,11 @@ struct Feature
 /**
  * Sparse feature mapper for depth
  */
-class Matcher
+class FeatureTracker
 {
 private:
+    bool debug;
+
     cv::Ptr<cv::ORB> detector;  // corner/feature detector
     cv::Ptr<cv::DescriptorMatcher> matcher;
 
@@ -41,6 +43,34 @@ private:
     Eigen::Vector3d cam_world_pos;
     Eigen::Quaterniond cam_world_rot;
     bool cam_initialized;
+
+    /**
+     * Internal helper to visualize tracking
+     */
+    void show_debug (const cv::Mat& img, 
+                     const std::vector<cv::DMatch>& t_matches, 
+                     const std::vector<cv::KeyPoint>& cur_kp)
+    {
+        cv::Mat out;
+        cv::cvtColor (img, out, cv::COLOR_GRAY2BGR);
+
+        for (const auto& m : t_matches)
+        {
+            // Draw a line from previous 2D position to current 2D position
+            cv::Point2f pt_prev = prev_fts[m.queryIdx].pt2d;
+            cv::Point2f pt_cur = cur_kp[m.trainIdx].pt;
+            
+            cv::line (out, pt_prev, pt_cur, cv::Scalar (0, 255, 0), 1);
+            cv::circle (out, pt_cur, 2, cv::Scalar (0, 0, 255), -1);
+        }
+
+        std::string info = "Matches: " + std::to_string (t_matches.size ());
+        cv::putText (out, info, cv::Point (30, 30), cv::FONT_HERSHEY_SIMPLEX,
+                     0.8, cv::Scalar (255, 255, 0), 2);
+        
+        cv::imshow ("VIO Debugger", out);
+        cv::waitKey (0); 
+    }
 
     /**
      * Feature extraction and matching with previous descriptors
@@ -102,13 +132,17 @@ private:
      * Estimate movement between frames
      */
     std::optional<Pose> estimate_motion (const std::vector<cv::KeyPoint>& l_kp,
-                                         const cv::Mat& l_desc)
+                                         const cv::Mat& l_desc,
+                                         const cv::Mat& l_img)
     {
         if (prev_fts.empty ())
             return std::nullopt;
 
         std::vector<cv::DMatch> t_matches;
         matcher->match (prev_descs, l_desc, t_matches);
+
+        if (debug)
+            show_debug (l_img, t_matches, l_kp);
 
         std::vector<cv::Point3f> pts3d;
         std::vector<cv::Point2f> pts2d;
@@ -128,17 +162,19 @@ private:
         // as well as do majority vote. Wow.
         if (cv::solvePnPRansac (pts3d, pts2d, K1, D1, rvec, tvec))
         {
-            Pose p;
-            p.pos = Eigen::Vector3d (tvec.at<double> (0),
-                                     tvec.at<double> (1),
-                                     tvec.at<double> (2));
+            cv::Mat R_mat;
+            cv::Rodrigues (rvec, R_mat);
+            Eigen::Matrix3d R_eigen;
+            cv::cv2eigen (R_mat, R_eigen);
 
-            // axis angle to quat
-            cv::Mat R;
-            cv::Rodrigues (rvec, R);
-            Eigen::Matrix3d eigen_R;
-            cv::cv2eigen (R, eigen_R);
-            p.rot = Eigen::Quaterniond (eigen_R).inverse ();
+            Pose p;
+            Eigen::Vector3d t_eigen;
+            cv::cv2eigen (tvec, t_eigen);
+            
+            p.pos = -R_eigen.transpose () * t_eigen;
+            
+            // The rotation from previous frame to current frame
+            p.rot = Eigen::Quaterniond (R_eigen.transpose ()); 
             
             return p;
         }
@@ -150,7 +186,7 @@ public:
     /**
      * Init
      */
-    Matcher (const std::string& calib_path = CALIB_PATH)
+    FeatureTracker (const std::string& calib_path = CALIB_PATH)
     {
         detector = cv::ORB::create (FEATURE_N);
         matcher = cv::DescriptorMatcher::create (
@@ -169,6 +205,8 @@ public:
         cam_world_pos = Eigen::Vector3d::Zero ();
         cam_world_rot = Eigen::Quaterniond::Identity ();
         cam_initialized = false;
+
+        debug = true;
     }
 
     /**
@@ -185,7 +223,7 @@ public:
      * Returns ABSOLUTE camera pose in world frame
      * @warning optional
      */
-    std::optional<Pose> match (const CamData& l_cd, const CamData& r_cd)
+    std::optional<Pose> get_pose (const CamData& l_cd, const CamData& r_cd)
     {
         cv::Mat l_desc;
         std::vector<cv::DMatch> stereo_matches;
@@ -193,22 +231,29 @@ public:
         auto [l_kp, r_kp] = extract_and_stereo_match (l_cd, r_cd, l_desc,
                                                       stereo_matches);
         if (stereo_matches.empty ())
+        {
+            std::cout << "No matches" << std::endl;
             return std::nullopt;
+        }
 
         auto cur_fts = triangulate (stereo_matches, l_kp, r_kp, l_desc);
 
         // Get RELATIVE motion from previous camera frame
-        auto relative_motion = estimate_motion (l_kp, l_desc);
+        auto relative_motion = estimate_motion (l_kp, l_desc, l_cd.img);
 
         // Save features for next frame
         if (!cur_fts.empty ())
         {
+            std::cout << "No Features" << std::endl;
             prev_descs = std::move (l_desc); 
             prev_fts = std::move (cur_fts);
         }
 
         if (!relative_motion || !cam_initialized)
+        {
+            std::cout << "No motion" << std::endl;
             return std::nullopt;
+        }    
 
         // Accumulate relative motion into absolute world pose
         // Transform camera-frame delta into world frame

@@ -4,10 +4,10 @@
  */
 
 #include "stereo.hpp"
-#include "matcher.hpp"
+#include "feature_tracker.hpp"
 
 int main ()
 {
     Stereo cam;
-    Matcher matcher;
+    FeatureTracker matcher;
 }
