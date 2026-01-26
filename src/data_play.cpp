@@ -6,6 +6,7 @@
 #include "feature_tracker.hpp"
 #include "euroc_player.hpp"
 #include "ekf.hpp"
+#include "streamer.hpp"
 #include "helpers.h"
 #include <iostream>
 
@@ -65,6 +66,7 @@ int main ()
     ekf.set_bias (initial_accel_bias, avg_gyro);
 
     /*** LOOP ***/
+    Streamer streamer;
     FeatureTracker feature_tracker ("../data/calib/euroc_calib.yaml");
     while (auto frames = player.get_next_stereo ())
     {
@@ -72,10 +74,12 @@ int main ()
         uint64_t current_ts = l.time_ns;
         auto imu_batch = player.get_imu_until (current_ts);
 
+        // EKF
         for (const IMUData& imu : imu_batch)
-            ekf.predict(imu);
+            ekf.predict (imu);
 
-        // Process Vision
+        // Process Vision 
+        // TODO: Handle camera offset from IMU?
         // auto cam_pose = feature_tracker.get_pose (l, r);
         // if (cam_pose)
         //     ekf.update (*cam_pose);
@@ -86,6 +90,16 @@ int main ()
 
         double drift = (fused_state.pos - gt_pos).norm ();
 
+        
+        // Telemetry
+        TelemetryPacket pkt = {fused_state.pos.x (),
+                               fused_state.pos.y (),
+                               fused_state.pos.z (),
+                               gt_pos.x (),
+                               gt_pos.y (),
+                               gt_pos.z ()};
+        streamer.send (pkt);
+        
         std::cout << "TS: " << ns_to_sec (current_ts - init_time)
                   << " | EKF Pos: " << fused_state.pos.transpose () 
                   << " | GT: " << gt_pos.transpose () 

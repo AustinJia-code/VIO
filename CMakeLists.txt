@@ -19,6 +19,7 @@ target_include_directories (vio_core INTERFACE
     ${OpenCV_INCLUDE_DIRS} 
     ${EIGEN3_INCLUDE_DIR}
 )
+
 target_link_libraries (vio_core INTERFACE 
     ${OpenCV_LIBS} 
     Eigen3::Eigen 

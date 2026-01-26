@@ -100,30 +100,50 @@ public:
     /**
      * Update with ABSOLUTE camera pose in world frame
      */
-    void update (const Pose& cam_absolute_pose)
+    void update (const Pose& cam_pose)
     {
-        Eigen::Vector3d pos_err = cam_absolute_pose.pos - x.segment<3> (0);
+        // Innovation (Residual)
+        Eigen::Vector3d pos_err = cam_pose.pos - x.segment<3>(0);
+        Eigen::Quaterniond q_ekf (x (9), x (6),  x(7), x (8));
 
-        Eigen::Quaterniond q_ekf (x (9), x (6), x (7), x (8));
-        Eigen::Quaterniond q_cam = cam_absolute_pose.rot;
-        
-        // Kalman gain (trust camera less than IMU for short-term)
-        double k_pos = 0.2;  // 20% trust in camera position
-        double k_rot = 0.3;  // 30% trust in camera rotation
-        
-        // Weighted update
-        x.segment<3> (0) += k_pos * pos_err;
+        Eigen::Vector3d rot_err = quat_to_axis_angle (q_ekf.normalized ().inverse () *
+                                                      cam_pose.rot.normalized ());
 
-        Eigen::Quaterniond q_fused = q_ekf.slerp (k_rot, q_cam);
-        q_fused.normalize ();
-        
-        x (6) = q_fused.x ();
-        x (7) = q_fused.y (); 
-        x (8) = q_fused.z ();
-        x (9) = q_fused.w ();
+        Eigen::Matrix<double, 6, 1> z_err;
+        z_err << pos_err, rot_err;
 
-        P.diagonal () *= (1.0 - 0.5 * k_pos);
-        last_ns = cam_absolute_pose.time_ns;
+        // Measurement Matrix H (6x15)
+        // Maps state [p, v, q, ba, bg] to measurement [p, q]
+        Eigen::Matrix<double, 6, 15> H = Eigen::Matrix<double, 6, 15>::Zero ();
+        H.block<3,3> (0,0) = Eigen::Matrix3d::Identity (); // position maps to position
+        H.block<3,3> (3,6) = Eigen::Matrix3d::Identity (); // rotation maps to rotation
+
+        // Measurement Noise R (cam trust)
+        Eigen::Matrix<double, 6, 6> R = Eigen::Matrix<double, 6, 6>::Identity () * 0.01;
+
+        // Kalman Gain: K = P * H^T * (H * P * H^T + R)^-1
+        auto S = H * P * H.transpose () + R;
+        Eigen::Matrix<double, 15, 6> K = P * H.transpose () * S.inverse ();
+
+        // Update State
+        Eigen::Matrix<double, 15, 1> dx = K * z_err;
+        x.segment<3>(0) += dx.segment<3> (0); // pos
+        x.segment<3>(3) += dx.segment<3> (3); // vel
+        
+        // Rotation update via small-angle
+        Eigen::Quaterniond dq (Eigen::AngleAxisd (dx.segment<3> (6).norm (),
+                                                  dx.segment<3> (6).normalized ()));
+        if(dx.segment<3>(6).norm () < 1e-6)
+            dq = Eigen::Quaterniond::Identity ();
+
+        q_ekf = q_ekf * dq;
+        x.segment<4>(6) << q_ekf.x (), q_ekf.y (), q_ekf.z (), q_ekf.w ();
+
+        x.segment<3>(10) += dx.segment<3> (9);  // accel bias
+        x.segment<3>(13) += dx.segment<3> (12); // gyro bias
+
+        // Update Covariance: P = (I - KH)P
+        P = (Eigen::Matrix<double, 15, 15>::Identity () - K * H) * P;
     }
 
     /**

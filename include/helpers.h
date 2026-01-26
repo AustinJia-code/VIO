@@ -27,6 +27,31 @@ static inline Eigen::Vector3d quat_to_euler (const Eigen::Quaterniond& q)
 }
 
 /**
+ * Quaterniond to axis * angle
+ */
+Eigen::Vector3d quat_to_axis_angle (const Eigen::Quaterniond& q_in)
+{
+    Eigen::Quaterniond q = q_in.normalized ();
+
+    // Ensure shortest rotation
+    if (q.w () < 0)
+        q.coeffs () *= -1;
+
+    Eigen::Vector3d v = q.vec ();
+    double w = q.w ();
+
+    double v_norm  = v.norm ();
+
+    // Small-angle approximation
+    if (v_norm  < 1e-8)
+        return 2.0 * v;
+
+    double theta = 2.0 * std::atan2 (v_norm, w);
+    return theta * (v / v_norm );
+}
+
+
+/**
  * Nanoseconds to seconds
  */
 static inline sec_t ns_to_sec (const ns_t time_ns)
