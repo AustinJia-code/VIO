@@ -69,8 +69,6 @@ int main ()
 
         // Process Vision
         auto cam_pose = feature_tracker.get_pose (l, r);
-        std::cout << cam_pose->pos << "\n" 
-                  << cam_pose->rot << std::endl;
         if (cam_pose)
             ekf.update (*cam_pose);
 
@@ -80,7 +78,7 @@ int main ()
 
         double drift = (fused_state.pos - gt_pos).norm ();
 
-        std::cout << "TS: " << current_ts 
+        std::cout << "TS: " << current_ts
                   << " | EKF Pos: " << fused_state.pos.transpose () 
                   << " | GT: " << gt_pos.transpose () 
                   << " | Drift: " << drift << "m" << std::endl;

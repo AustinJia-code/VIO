@@ -21,6 +21,8 @@ private:
 
     std::string root;
 
+    size_t STARTING_TS = 1403636599913555456;
+
 public:
     EurocPlayer (std::string path) : root (path)
     {
@@ -37,6 +39,10 @@ public:
             std::getline (ss, ts, ',');
             std::getline (ss, fname, ',');
             fname.erase (fname.find_last_not_of (" \r\n\t") + 1);
+
+            size_t ullts = std::stoull (ts);
+            if (ullts < STARTING_TS)
+                continue;
 
             cam0_map[std::stoull (ts)] = root + "/cam0/data/" + fname;
         }
@@ -58,6 +64,9 @@ public:
             {
                 IMUData m;
                 m.time_ns = static_cast<ns_t> (row[0]);
+                if (m.time_ns < STARTING_TS)
+                    continue;
+
                 // EuroC format: ts, gyros(x,y,z), accels(x,y,z)
                 m.gyro = Eigen::Vector3d (row[1], row[2], row[3]);
                 m.accel = Eigen::Vector3d (row[4], row[5], row[6]);
