@@ -71,18 +71,18 @@ int main ()
     while (auto frames = player.get_next_stereo ())
     {
         auto [l, r] = *frames;
-        uint64_t current_ts = l.time_ns;
+        ns_t current_ts {l.time_ns};
         auto imu_batch = player.get_imu_until (current_ts);
 
         // EKF
-        for (const IMUData& imu : imu_batch)
-            ekf.predict (imu);
+        // for (const IMUData& imu : imu_batch)
+        //     ekf.predict (imu);
 
         // Process Vision 
         // TODO: Handle camera offset from IMU?
-        // auto cam_pose = feature_tracker.get_pose (l, r);
-        // if (cam_pose)
-        //     ekf.update (*cam_pose);
+        auto cam_pose = feature_tracker.get_pose (l, r);
+        if (cam_pose)
+            ekf.update (*cam_pose);
 
         // Compare with Ground Truth
         Pose fused_state = ekf.get_estimate ();
@@ -97,13 +97,16 @@ int main ()
                                fused_state.pos.z (),
                                gt_pos.x (),
                                gt_pos.y (),
-                               gt_pos.z ()};
+                               gt_pos.z (),
+                               current_ts};
         streamer.send (pkt);
         
         std::cout << "TS: " << ns_to_sec (current_ts - init_time)
                   << " | EKF Pos: " << fused_state.pos.transpose () 
                   << " | GT: " << gt_pos.transpose () 
                   << " | Drift: " << drift << "m" << std::endl;
+
+        usleep (sec_to_us (sec_t {0.05}));
     }
 
     std::cout << "Dataset Processing Complete." << std::endl;

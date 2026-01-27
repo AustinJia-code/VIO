@@ -12,6 +12,7 @@ struct TelemetryPacket
 {
     double ekf_x, ekf_y, ekf_z;
     double gt_x, gt_y, gt_z;
+    ns_t time_ns;
 };
 
 class Streamer

@@ -23,6 +23,13 @@
 // CONFIGURATION
 // ============================================================================
 const std::string ROOT = "../data/euroc_datasets/machine_hall/MH_01_easy/mav0/";
+
+// Approx 0 movement
+// const std::pair<std::string, std::string> STEREO_0_PATH =
+//     {"cam0/data/1403636579763555584.png", "cam1/data/1403636579763555584.png"};
+// const std::pair<std::string, std::string> STEREO_1_PATH =
+//     {"cam0/data/1403636579813555456.png", "cam1/data/1403636579813555456.png"};
+
 const std::pair<std::string, std::string> STEREO_0_PATH =
     {"cam0/data/1403636579763555584.png", "cam1/data/1403636579763555584.png"};
 const std::pair<std::string, std::string> STEREO_1_PATH =
