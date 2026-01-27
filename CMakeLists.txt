@@ -47,3 +47,6 @@ target_link_libraries (stereo_capture PRIVATE vio_core)
 
 add_executable (kalman_tests tests/kalman_tests.cpp)
 target_link_libraries (kalman_tests PRIVATE vio_core)
+
+add_executable (VO_step tests/VO_step.cpp)
+target_link_libraries (VO_step PRIVATE vio_core)
