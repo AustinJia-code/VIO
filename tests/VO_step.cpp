@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+#include <map>
 #include <opencv2/opencv.hpp>
 #include <opencv2/features2d.hpp>
 #include <opencv2/calib3d.hpp>
@@ -434,7 +435,9 @@ std::pair<cv::Mat, cv::Mat> rectifyImages(const cv::Mat& left_raw,
  */
 std::pair<cv::Mat, cv::Mat> computeDisparityAndDepth(const cv::Mat& left_rect, 
                                                        const cv::Mat& right_rect,
-                                                       const cv::Mat& Q) {
+                                                       const cv::Mat& Q,
+                                                       double baseline,
+                                                       double focal_length) {
     std::cout << "\n" << std::string(80, '=') << std::endl;
     std::cout << "STEP 3: DISPARITY & DEPTH COMPUTATION" << std::endl;
     std::cout << std::string(80, '=') << std::endl;
@@ -482,42 +485,55 @@ std::pair<cv::Mat, cv::Mat> computeDisparityAndDepth(const cv::Mat& left_rect,
     showImage("3a. Disparity Map (color)", disparity_color, false);
     showImage("3b. Disparity Map (grayscale)", disparity_vis, false);
     
-    // ===== COMPUTE DEPTH MAP =====
+    // ===== COMPUTE DEPTH MAP MANUALLY =====
     std::cout << "\nComputing depth map from disparity..." << std::endl;
-    cv::Mat depth_map;
-    cv::reprojectImageTo3D(disparity, depth_map, Q, true);
+    std::cout << "Using formula: depth = (focal_length * baseline) / disparity" << std::endl;
+    std::cout << "  focal_length = " << focal_length << " px" << std::endl;
+    std::cout << "  baseline = " << baseline << " m" << std::endl;
     
-    // Extract just Z channel (depth)
-    std::vector<cv::Mat> xyz;
-    cv::split(depth_map, xyz);
-    cv::Mat depth = xyz[2];  // Z is depth
+    cv::Mat depth = cv::Mat::zeros(disparity_float.size(), CV_32F);
     
-    // Filter invalid depths
-    cv::Mat depth_valid = depth.clone();
-    depth_valid.setTo(0, depth <= 0);
-    depth_valid.setTo(0, depth > 100);  // Max 100m
+    double fb = focal_length * baseline;  // f * b
+    std::cout << "  f * b = " << fb << std::endl;
     
-    printStats("Depth map (meters)", depth_valid);
+    int valid_count = 0;
+    for (int y = 0; y < disparity_float.rows; y++) {
+        for (int x = 0; x < disparity_float.cols; x++) {
+            float d = disparity_float.at<float>(y, x);
+            if (d > 0.5) {  // Valid disparity threshold
+                float z = fb / d;
+                if (z > 0 && z < 100) {  // Realistic depth range
+                    depth.at<float>(y, x) = z;
+                    valid_count++;
+                }
+            }
+        }
+    }
+    
+    std::cout << "Valid depth pixels: " << valid_count << " / " 
+              << (depth.rows * depth.cols) << std::endl;
+    
+    printStats("Depth map (meters)", depth);
     
     // Calculate valid depth statistics
-    cv::Mat mask = (depth_valid > 0);
+    cv::Mat mask = (depth > 0);
     double min_depth, max_depth;
-    cv::minMaxLoc(depth_valid, &min_depth, &max_depth, nullptr, nullptr, mask);
+    cv::minMaxLoc(depth, &min_depth, &max_depth, nullptr, nullptr, mask);
     
-    std::cout << "Valid depth range: [" << min_depth << ", " << max_depth << "] meters" << std::endl;
-    std::cout << "Valid pixels: " << cv::countNonZero(mask) << " / " 
-              << (depth.rows * depth.cols) << std::endl;
+    if (valid_count > 0) {
+        std::cout << "Valid depth range: [" << min_depth << ", " << max_depth << "] meters" << std::endl;
+    }
     
     // Visualize depth
     cv::Mat depth_vis;
-    cv::normalize(depth_valid, depth_vis, 0, 255, cv::NORM_MINMAX, CV_8U, mask);
+    cv::normalize(depth, depth_vis, 0, 255, cv::NORM_MINMAX, CV_8U, mask);
     cv::Mat depth_color;
     cv::applyColorMap(depth_vis, depth_color, cv::COLORMAP_TURBO);
     depth_color.setTo(cv::Scalar(0, 0, 0), ~mask);  // Black for invalid
     
     showImage("3c. Depth Map (meters, color)", depth_color, true);
     
-    return {disparity_float, depth_valid};
+    return {disparity_float, depth};
 }
 
 /**
@@ -675,7 +691,7 @@ std::vector<cv::Point3f> triangulatePoints(const FeatureMatches& matches,
 void estimateCameraMotion(const FeatureMatches& matches_t0_t1,
                           const cv::Mat& K) {
     std::cout << "\n" << std::string(80, '=') << std::endl;
-    std::cout << "STEP 6: CAMERA MOTION ESTIMATION" << std::endl;
+    std::cout << "STEP 6a: CAMERA MOTION ESTIMATION (Essential Matrix)" << std::endl;
     std::cout << std::string(80, '=') << std::endl;
     
     if (matches_t0_t1.matches.size() < 8) {
@@ -708,22 +724,208 @@ void estimateCameraMotion(const FeatureMatches& matches_t0_t1,
     
     std::cout << "\nRecovered pose inliers: " << pose_inliers << std::endl;
     std::cout << "\nRotation Matrix R:" << std::endl << R << std::endl;
-    std::cout << "\nTranslation vector t:" << std::endl << t << std::endl;
+    std::cout << "\nTranslation vector t (UNIT DIRECTION ONLY):" << std::endl << t << std::endl;
     
     // Convert rotation to axis-angle
     cv::Mat rvec;
     cv::Rodrigues(R, rvec);
     double angle = cv::norm(rvec) * 180.0 / M_PI;
     
-    std::cout << "\nMotion summary:" << std::endl;
+    std::cout << "\nMotion summary (NO SCALE):" << std::endl;
     std::cout << "  Rotation angle: " << angle << " degrees" << std::endl;
-    std::cout << "  Translation magnitude: " << cv::norm(t) << " (relative units)" << std::endl;
+    std::cout << "  Translation magnitude: 1 (UNIT VECTOR - NO SCALE)" << std::endl;
     std::cout << "  Translation direction: [" 
               << t.at<double>(0) << ", " 
               << t.at<double>(1) << ", " 
               << t.at<double>(2) << "]" << std::endl;
     
-    waitForKey("Camera Motion Estimation Complete");
+    std::cout << "\n*** NOTE: Essential matrix does NOT give scale! ***" << std::endl;
+    std::cout << "    We need stereo depth to recover absolute motion." << std::endl;
+    
+    waitForKey("Camera Motion Estimation (Essential Matrix)");
+}
+
+/**
+ * STEP 6b: Absolute motion estimation using stereo depth (3D-2D PnP)
+ */
+void estimateAbsoluteMotion(const FeatureMatches& stereo_matches_t0,
+                            const FeatureMatches& temporal_matches,
+                            const cv::Mat& depth_t0,
+                            const cv::Mat& K,
+                            const cv::Mat& P1,
+                            const cv::Mat& P2) {
+    std::cout << "\n" << std::string(80, '=') << std::endl;
+    std::cout << "STEP 6b: ABSOLUTE MOTION ESTIMATION (3D-2D PnP with Stereo Depth)" << std::endl;
+    std::cout << std::string(80, '=') << std::endl;
+    
+    // Step 1: Use depth map to get 3D positions for keypoints at t=0
+    std::cout << "Extracting 3D positions from depth map at t=0..." << std::endl;
+    
+    // Camera intrinsics
+    double fx = K.at<double>(0, 0);
+    double fy = K.at<double>(1, 1);
+    double cx = K.at<double>(0, 2);
+    double cy = K.at<double>(1, 2);
+    
+    std::vector<cv::Point3f> points_3d;  // 3D positions at t=0
+    std::vector<cv::Point2f> points_2d;  // 2D positions at t=1
+    
+    int depth_valid_count = 0;
+    int matched_count = 0;
+    
+    // For each temporal match
+    for (const auto& m : temporal_matches.matches) {
+        // Get keypoint position at t=0
+        cv::Point2f pt_t0 = temporal_matches.keypoints1[m.queryIdx].pt;
+        cv::Point2f pt_t1 = temporal_matches.keypoints2[m.trainIdx].pt;
+        
+        // Get depth at this pixel (nearest neighbor)
+        int x = static_cast<int>(pt_t0.x + 0.5);
+        int y = static_cast<int>(pt_t0.y + 0.5);
+        
+        // Check bounds
+        if (x >= 0 && x < depth_t0.cols && y >= 0 && y < depth_t0.rows) {
+            float depth = depth_t0.at<float>(y, x);
+            
+            if (depth > 0.5 && depth < 50.0) {  // Valid depth
+                depth_valid_count++;
+                
+                // Back-project to 3D using pinhole model
+                float Z = depth;
+                float X = (x - cx) * Z / fx;
+                float Y = (y - cy) * Z / fy;
+                
+                points_3d.push_back(cv::Point3f(X, Y, Z));
+                points_2d.push_back(pt_t1);
+                matched_count++;
+            }
+        }
+    }
+    
+    std::cout << "Temporal matches: " << temporal_matches.matches.size() << std::endl;
+    std::cout << "Matches with valid depth: " << depth_valid_count << std::endl;
+    std::cout << "3D-2D correspondences: " << matched_count << std::endl;
+    
+    if (points_3d.size() < 6) {
+        std::cout << "\nERROR: Not enough 3D-2D correspondences for PnP!" << std::endl;
+        std::cout << "Need at least 6, got " << points_3d.size() << std::endl;
+        std::cout << "\nPossible issues:" << std::endl;
+        std::cout << "  - Depth map has no valid values (check stereo matching)" << std::endl;
+        std::cout << "  - Temporal matches don't overlap with valid depth regions" << std::endl;
+        waitForKey("Absolute Motion Estimation (insufficient data)");
+        return;
+    }
+    
+    // Step 2: Solve PnP to get camera pose at t=1 relative to t=0
+    std::cout << "\nSolving PnP (3D-2D) for absolute camera motion..." << std::endl;
+    
+    cv::Mat rvec, tvec;
+    cv::Mat inliers;
+    
+    bool success = cv::solvePnPRansac(
+        points_3d,
+        points_2d,
+        K,
+        cv::Mat(),  // No distortion (already undistorted)
+        rvec,
+        tvec,
+        false,      // useExtrinsicGuess
+        100,        // iterationsCount
+        8.0,        // reprojectionError
+        0.99,       // confidence
+        inliers     // inliers
+    );
+    
+    if (!success) {
+        std::cout << "PnP failed!" << std::endl;
+        waitForKey("Absolute Motion Estimation (PnP failed)");
+        return;
+    }
+    
+    int num_inliers = inliers.rows;
+    std::cout << "PnP inliers: " << num_inliers << " / " << points_3d.size() 
+              << " (" << (100.0 * num_inliers / points_3d.size()) << "%)" << std::endl;
+    
+    // Convert rotation vector to matrix
+    cv::Mat R;
+    cv::Rodrigues(rvec, R);
+    
+    // Calculate rotation angle
+    double angle = cv::norm(rvec) * 180.0 / M_PI;
+    
+    // Calculate translation magnitude (in meters!)
+    double tx = tvec.at<double>(0);
+    double ty = tvec.at<double>(1);
+    double tz = tvec.at<double>(2);
+    double t_magnitude = std::sqrt(tx*tx + ty*ty + tz*tz);
+    
+    std::cout << "\n=== ABSOLUTE MOTION (WITH SCALE) ===" << std::endl;
+    std::cout << "\nRotation:" << std::endl;
+    std::cout << "  Angle: " << angle << " degrees" << std::endl;
+    std::cout << "  Axis (unit): [" 
+              << rvec.at<double>(0)/cv::norm(rvec) << ", "
+              << rvec.at<double>(1)/cv::norm(rvec) << ", "
+              << rvec.at<double>(2)/cv::norm(rvec) << "]" << std::endl;
+    
+    std::cout << "\nTranslation (REAL SCALE in meters):" << std::endl;
+    std::cout << "  Magnitude: " << t_magnitude << " meters" << std::endl;
+    std::cout << "  Vector: [" << tx << ", " << ty << ", " << tz << "] m" << std::endl;
+    std::cout << "  Direction (unit): [" 
+              << tx/t_magnitude << ", " 
+              << ty/t_magnitude << ", " 
+              << tz/t_magnitude << "]" << std::endl;
+    
+    std::cout << "\nCamera Coordinate Frame:" << std::endl;
+    std::cout << "  X-axis: Right" << std::endl;
+    std::cout << "  Y-axis: Down" << std::endl;
+    std::cout << "  Z-axis: Forward (optical axis)" << std::endl;
+    
+    std::cout << "\nInterpretation:" << std::endl;
+    if (std::abs(tx) > std::abs(ty) && std::abs(tx) > std::abs(tz)) {
+        std::cout << "  Primary motion: " << (tx > 0 ? "RIGHT" : "LEFT") << std::endl;
+    } else if (std::abs(ty) > std::abs(tz)) {
+        std::cout << "  Primary motion: " << (ty > 0 ? "DOWN" : "UP") << std::endl;
+    } else {
+        std::cout << "  Primary motion: " << (tz > 0 ? "FORWARD" : "BACKWARD") << std::endl;
+    }
+    
+    // Create visualization
+    cv::Mat viz = cv::Mat::zeros(600, 900, CV_8UC3);
+    int y_pos = 30;
+    
+    auto addText = [&](const std::string& text, cv::Scalar color = cv::Scalar(0, 255, 0)) {
+        cv::putText(viz, text, cv::Point(20, y_pos), 
+                    cv::FONT_HERSHEY_SIMPLEX, 0.6, color, 2);
+        y_pos += 30;
+    };
+    
+    addText("=== ABSOLUTE CAMERA MOTION ===", cv::Scalar(0, 255, 255));
+    y_pos += 10;
+    
+    char buf[200];
+    snprintf(buf, sizeof(buf), "Rotation: %.2f degrees", angle);
+    addText(buf);
+    
+    snprintf(buf, sizeof(buf), "Translation: %.3f meters", t_magnitude);
+    addText(buf, cv::Scalar(0, 255, 255));
+    
+    y_pos += 10;
+    addText("Translation Vector (meters):");
+    snprintf(buf, sizeof(buf), "  X (right):   %+.4f m", tx);
+    addText(buf, cv::Scalar(200, 200, 200));
+    snprintf(buf, sizeof(buf), "  Y (down):    %+.4f m", ty);
+    addText(buf, cv::Scalar(200, 200, 200));
+    snprintf(buf, sizeof(buf), "  Z (forward): %+.4f m", tz);
+    addText(buf, cv::Scalar(200, 200, 200));
+    
+    y_pos += 10;
+    snprintf(buf, sizeof(buf), "3D-2D Correspondences: %d", (int)points_3d.size());
+    addText(buf);
+    snprintf(buf, sizeof(buf), "PnP Inliers: %d (%.1f%%)", num_inliers, 
+             100.0 * num_inliers / points_3d.size());
+    addText(buf);
+    
+    showImage("6b. Absolute Motion with Scale", viz, true);
 }
 
 /**
@@ -830,7 +1032,9 @@ int main(int argc, char** argv) {
         
         auto [left0_rect, right0_rect] = rectifyImages(left0_raw, right0_raw, calib);
         
-        auto [disparity0, depth0] = computeDisparityAndDepth(left0_rect, right0_rect, calib.Q);
+        auto [disparity0, depth0] = computeDisparityAndDepth(left0_rect, right0_rect, 
+                                                               calib.Q, calib.baseline, 
+                                                               calib.K1.at<double>(0, 0));
         
         FeatureMatches stereo_matches = extractAndMatchFeatures(left0_rect, right0_rect, false);
         
@@ -861,6 +1065,9 @@ int main(int argc, char** argv) {
         );
         
         estimateCameraMotion(temporal_matches, calib.K1);
+        
+        estimateAbsoluteMotion(stereo_matches, temporal_matches, depth0,
+                              calib.K1, calib.P1, calib.P2);
         
         // ==================================================================
         // FINAL SUMMARY

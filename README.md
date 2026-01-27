@@ -13,7 +13,7 @@ make
 ```
 
 ### Run:
-Live estimation: ```./live_play```
+Live estimation: ```./live_play```\
 Dataset playback: ```./data_play```
 
 ### Todo:
