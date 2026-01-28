@@ -15,6 +15,7 @@ make
 ### Run:
 Live estimation: ```./live_play```\
 Dataset playback: ```./data_play```
+Visualizer: ```python ../tools/Plotter.py```
 
 ### Todo:
 * Improve EKF

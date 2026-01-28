@@ -84,7 +84,9 @@ int main ()
         // Process Vision 
         // TODO: Handle camera offset from IMU?
         Pose cam_pose = vo.process_frame (l.img, r.img, l.time_ns);
-        ekf.update (cam_pose);
+        Pose global_pose = vo.get_global_pose ();
+
+        ekf.update (global_pose);
 
         // Compare with Ground Truth
         Pose fused_state = ekf.get_estimate ();
@@ -93,9 +95,9 @@ int main ()
         double drift = (fused_state.pos - gt_pos).norm ();
 
         // Telemetry
-        TelemetryPacket pkt = {cam_pose.pos.x (),
-                               cam_pose.pos.y (),
-                               cam_pose.pos.z (),
+        TelemetryPacket pkt = {global_pose.pos.x (),
+                               global_pose.pos.y (),
+                               global_pose.pos.z (),
                                gt_pos.x (),
                                gt_pos.y (),
                                gt_pos.z (),

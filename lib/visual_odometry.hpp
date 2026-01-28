@@ -25,6 +25,9 @@
 class CameraCalibration
 {
 private:
+    /**
+     * Helper for absolutely buck wild calib format
+     */
     bool load_euroc (const std::string& path, cv::Mat& T_BS, cv::Size& size)
     {
         std::ifstream file (path);
@@ -161,6 +164,9 @@ public:
     cv::Size image_size;
     double baseline;          // Stereo baseline in meters
     
+    /**
+     * Load euroc calib files
+     */
     bool load (const std::string& stereo_path, 
                const std::string& cam0_path, 
                const std::string& cam1_path)
@@ -221,10 +227,9 @@ public:
     }
 };
 
-// ============================================================================
-// FEATURE MATCHES
-// ============================================================================
-
+/**
+ * Feature struct for stereo input
+ */
 struct FeatureMatches
 {
     std::vector<cv::KeyPoint> keypoints1;
@@ -234,10 +239,9 @@ struct FeatureMatches
     cv::Mat descriptors2;
 };
 
-// ============================================================================
-// VISUAL ODOMETRY CLASS
-// ============================================================================
-
+/**
+ * Visual odometer from stereo input
+ */
 class VisualOdometry
 {
 private:
@@ -250,10 +254,15 @@ private:
     cv::Mat prev_left_rect_;
     cv::Mat prev_depth_;
     FeatureMatches prev_features_;
+
+    Eigen::Vector3d global_pos_;
+    Eigen::Quaterniond global_rot_;
+    ns_t last_timestamp_;
     
     // Pipeline methods
     std::pair<cv::Mat, cv::Mat> rectify_images (const cv::Mat& left_raw, 
-                                               const cv::Mat& right_raw) {
+                                                const cv::Mat& right_raw)
+    {
         cv::Mat left_rect, right_rect;
         
         // Undistort (EuRoC images are pre-rectified, just undistort)
@@ -263,6 +272,9 @@ private:
         return {left_rect, right_rect};
     }
         
+    /**
+     * Build depth map
+     */
     cv::Mat compute_depth_map (const cv::Mat& left_rect, const cv::Mat& right_rect)
     {
         // Create stereo matcher
@@ -316,14 +328,19 @@ private:
         return depth;
     }
     
+    /**
+     * Get features from images
+     */
     FeatureMatches extract_and_match_features (const cv::Mat& img1, const cv::Mat& img2)
     {
         FeatureMatches result;
         
         // Detect features using ORB
         cv::Ptr<cv::ORB> detector = cv::ORB::create (2000);
-        detector->detectAndCompute (img1, cv::noArray (), result.keypoints1, result.descriptors1);
-        detector->detectAndCompute (img2, cv::noArray (), result.keypoints2, result.descriptors2);
+        detector->detectAndCompute (img1, cv::noArray (), result.keypoints1,
+                                                          result.descriptors1);
+        detector->detectAndCompute (img2, cv::noArray (), result.keypoints2,
+                                                          result.descriptors2);
         
         // Match features
         cv::BFMatcher matcher (cv::NORM_HAMMING, true);  // crossCheck = true
@@ -456,7 +473,11 @@ public:
     VisualOdometry (const std::string& stereo_calib_path,
                     const std::string& cam0_calib_path,
                     const std::string& cam1_calib_path)
-        : calibrated_ (false), has_previous_frame_ (false)
+          : calibrated_ (false),
+            has_previous_frame_ (false),
+            global_pos_ (Eigen::Vector3d::Zero ()),
+            global_rot_ (Eigen::Quaterniond::Identity ()),
+            last_timestamp_ (0)
     {    
         calibrated_ = calib_.load (stereo_calib_path, cam0_calib_path, cam1_calib_path);
         
@@ -494,10 +515,12 @@ public:
         auto [curr_left_rect, curr_right_rect] = rectify_images (left_img, right_img);
         
         // Compute depth map for current frame
-        cv::Mat curr_depth = compute_depth_map (curr_left_rect, curr_right_rect);
+        cv::Mat curr_depth = compute_depth_map (
+                                curr_left_rect, curr_right_rect);
         
         // Extract features from current left image
-        FeatureMatches curr_features = extract_and_match_features (curr_left_rect, curr_left_rect);
+        FeatureMatches curr_features = extract_and_match_features (
+                                                curr_left_rect, curr_left_rect);
         
         // If this is the first frame, just store it
         if (!has_previous_frame_)
@@ -512,11 +535,21 @@ public:
         }
         
         // Match features between previous and current frame
-        FeatureMatches temporal_matches = extract_and_match_features (prev_left_rect_, curr_left_rect);
+        FeatureMatches temporal_matches = extract_and_match_features (
+                                                prev_left_rect_, curr_left_rect);
         
         // Estimate motion from previous to current frame
-        pose = estimate_motion (prev_features_, temporal_matches, prev_depth_, timestamp_ns);
+        pose = estimate_motion (prev_features_, temporal_matches,
+                                prev_depth_, timestamp_ns);
         
+        if (pose.pos.norm () > 0 ||
+            pose.rot.coeffs () != Eigen::Quaterniond::Identity ().coeffs ())
+        {
+            global_pos_ = global_pos_ + global_rot_ * pose.pos;
+            global_rot_ = global_rot_ * pose.rot;
+            last_timestamp_ = timestamp_ns;
+        }
+
         // Update previous frame
         prev_left_rect_ = curr_left_rect.clone ();
         prev_depth_ = curr_depth.clone ();
@@ -551,5 +584,17 @@ public:
     const CameraCalibration& get_calibration () const
     {
         return calib_;
+    }
+
+    /**
+     * Global pose w.r.t init
+     */
+    Pose get_global_pose () const
+    {
+        Pose pose;
+        pose.pos = global_pos_;
+        pose.rot = global_rot_;
+        pose.time_ns = last_timestamp_;
+        return pose;
     }
 };
