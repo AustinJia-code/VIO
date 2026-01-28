@@ -7,7 +7,7 @@
 
 #include "imu.hpp"
 #include "stereo.hpp"
-#include "feature_tracker.hpp"
+// #include "feature_tracker.hpp"
 #include "ekf.hpp"
 #include "helpers.h"
 
@@ -20,7 +20,7 @@ int main ()
     // Init
     IMU imu;
     Stereo cam;
-    FeatureTracker feature_tracker;
+    // FeatureTracker feature_tracker;
     EKF ekf;
 
     IMUData imu_data;
@@ -46,15 +46,15 @@ int main ()
             continue;
         }
 
-        auto cam_est_opt = feature_tracker.get_pose (frames_opt->first,
-                                                     frames_opt->second);
-        if (!cam_est_opt)
-        {
-            usleep (sec_to_us (sec_t {0.001}));
-            continue;
-        }
+        // auto cam_est_opt = feature_tracker.get_pose (frames_opt->first,
+        //                                              frames_opt->second);
+        // if (!cam_est_opt)
+        // {
+        //     usleep (sec_to_us (sec_t {0.001}));
+        //     continue;
+        // }
         
-        ekf.update (*cam_est_opt);
+        // ekf.update (*cam_est_opt);
         
         /** GET ESTIMATE **/
         Pose fused_estimate = ekf.get_estimate ();

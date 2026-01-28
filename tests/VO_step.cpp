@@ -31,9 +31,9 @@ const std::string ROOT = "../data/euroc_datasets/machine_hall/MH_01_easy/mav0/";
 //     {"cam0/data/1403636579813555456.png", "cam1/data/1403636579813555456.png"};
 
 const std::pair<std::string, std::string> STEREO_0_PATH =
-    {"cam0/data/1403636579763555584.png", "cam1/data/1403636579763555584.png"};
+    {"cam0/data/1403636583613555456.png", "cam1/data/1403636583613555456.png"};
 const std::pair<std::string, std::string> STEREO_1_PATH =
-    {"cam0/data/1403636579813555456.png", "cam1/data/1403636579813555456.png"};
+    {"cam0/data/1403636583663555584.png", "cam1/data/1403636583663555584.png"};
 
 // Calibration files
 const std::string CALIB_STEREO = "../data/calib/euroc_calib.yaml";
@@ -77,7 +77,7 @@ struct CameraCalibration {
         
         // Load cam0 sensor config (handle EuRoC format)
         std::cout << "Loading cam0 config: " << cam0_path << std::endl;
-        if (!loadEuRoCSensor(cam0_path, T_BS_cam0, image_size)) {
+        if (!load_euroc(cam0_path, T_BS_cam0, image_size)) {
             std::cerr << "Failed to load cam0 config" << std::endl;
             return false;
         }
@@ -85,7 +85,7 @@ struct CameraCalibration {
         // Load cam1 sensor config
         std::cout << "Loading cam1 config: " << cam1_path << std::endl;
         cv::Size dummy_size;
-        if (!loadEuRoCSensor(cam1_path, T_BS_cam1, dummy_size)) {
+        if (!load_euroc(cam1_path, T_BS_cam1, dummy_size)) {
             std::cerr << "Failed to load cam1 config" << std::endl;
             return false;
         }
@@ -111,7 +111,7 @@ struct CameraCalibration {
     }
     
     // Helper to load EuRoC sensor.yaml files (which have comments that break FileStorage)
-    bool loadEuRoCSensor(const std::string& path, cv::Mat& T_BS, cv::Size& size) {
+    bool load_euroc(const std::string& path, cv::Mat& T_BS, cv::Size& size) {
         std::ifstream file(path);
         if (!file.is_open()) {
             std::cerr << "Could not open: " << path << std::endl;

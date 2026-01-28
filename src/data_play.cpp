@@ -3,7 +3,7 @@
  * @brief Dataset runner for VIO
  */
 
-#include "feature_tracker.hpp"
+#include "visual_odometry.hpp"
 #include "euroc_player.hpp"
 #include "ekf.hpp"
 #include "streamer.hpp"
@@ -67,7 +67,10 @@ int main ()
 
     /*** LOOP ***/
     Streamer streamer;
-    FeatureTracker feature_tracker ("../data/calib/euroc_calib.yaml");
+    VisualOdometry vo ("../data/calib/euroc_calib.yaml",
+                       "../data/euroc_datasets/machine_hall/MH_01_easy/mav0/cam0/sensor.yaml",
+                       "../data/euroc_datasets/machine_hall/MH_01_easy/mav0/cam1/sensor.yaml");
+
     while (auto frames = player.get_next_stereo ())
     {
         auto [l, r] = *frames;
@@ -80,9 +83,8 @@ int main ()
 
         // Process Vision 
         // TODO: Handle camera offset from IMU?
-        auto cam_pose = feature_tracker.get_pose (l, r);
-        if (cam_pose)
-            ekf.update (*cam_pose);
+        Pose cam_pose = vo.process_frame (l.img, r.img, l.time_ns);
+        ekf.update (cam_pose);
 
         // Compare with Ground Truth
         Pose fused_state = ekf.get_estimate ();
@@ -90,11 +92,10 @@ int main ()
 
         double drift = (fused_state.pos - gt_pos).norm ();
 
-        
         // Telemetry
-        TelemetryPacket pkt = {fused_state.pos.x (),
-                               fused_state.pos.y (),
-                               fused_state.pos.z (),
+        TelemetryPacket pkt = {cam_pose.pos.x (),
+                               cam_pose.pos.y (),
+                               cam_pose.pos.z (),
                                gt_pos.x (),
                                gt_pos.y (),
                                gt_pos.z (),
@@ -106,7 +107,7 @@ int main ()
                   << " | GT: " << gt_pos.transpose () 
                   << " | Drift: " << drift << "m" << std::endl;
 
-        usleep (sec_to_us (sec_t {0.05}));
+        // usleep (sec_to_us (sec_t {0.05}));
     }
 
     std::cout << "Dataset Processing Complete." << std::endl;

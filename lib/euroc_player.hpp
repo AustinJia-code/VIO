@@ -8,6 +8,7 @@
 #include "defs.h"
 #include <fstream>
 #include <map>
+#include <optional>
 
 class EurocPlayer
 {
