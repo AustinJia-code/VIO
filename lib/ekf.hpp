@@ -27,7 +27,7 @@ public:
     /**
      * Constructor
      */
-    EKF ()
+    EKF() : last_ns(0), last_pred_ns(0)
     {
         x.setZero ();
         x.segment<4> (6) << 0, 0, 0, 1; // Initial rotation
@@ -92,7 +92,10 @@ public:
         x (9) = q.w ();
 
         // Add uncertainty
-        P += Q * dt;
+        Eigen::Matrix<double,15,15> F = Eigen::Matrix<double,15,15>::Identity ();
+        F.block<3,3> (0,3) = Eigen::Matrix3d::Identity () * dt;
+
+        P = F * P * F.transpose () + Q * dt;
         last_ns = data.time_ns;
         last_pred_ns = last_ns;
     }
@@ -119,7 +122,11 @@ public:
         H.block<3,3> (3,6) = Eigen::Matrix3d::Identity (); // rotation maps to rotation
 
         // Measurement Noise R (cam trust)
-        Eigen::Matrix<double, 6, 6> R = Eigen::Matrix<double, 6, 6>::Identity () * 0.01;
+        Eigen::Matrix<double, 6, 6> R;
+        R.setZero ();
+        R.block<3,3> (0,0) = Eigen::Matrix3d::Identity () * 1e-4;
+        R.block<3,3> (3,3) = Eigen::Matrix3d::Identity () * 1e-5;
+
 
         // Kalman Gain: K = P * H^T * (H * P * H^T + R)^-1
         auto S = H * P * H.transpose () + R;
@@ -137,13 +144,15 @@ public:
             dq = Eigen::Quaterniond::Identity ();
 
         q_ekf = q_ekf * dq;
+        q_ekf.normalize ();
         x.segment<4>(6) << q_ekf.x (), q_ekf.y (), q_ekf.z (), q_ekf.w ();
 
         x.segment<3>(10) += dx.segment<3> (9);  // accel bias
         x.segment<3>(13) += dx.segment<3> (12); // gyro bias
 
         // Update Covariance: P = (I - KH)P
-        P = (Eigen::Matrix<double, 15, 15>::Identity () - K * H) * P;
+        auto I = Eigen::Matrix<double,15,15>::Identity ();
+        P = (I - K * H)  *P * (I - K * H).transpose () + K * R * K.transpose ();
     }
 
     /**

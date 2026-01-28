@@ -31,11 +31,37 @@ ax_traj = fig.add_subplot (gs[:, 0], projection = '3d')
 ax_l = fig.add_subplot (gs[0, 1])
 ax_r = fig.add_subplot (gs[1, 1])
 
+def on_key (event):
+    if event.key == 'r':
+        print("Resetting trajectories")
+        reset()
+        plt.draw()
+
+fig.canvas.mpl_connect ('key_press_event', on_key)
+
 ax_l.set_title ("Left Image")
 ax_r.set_title ("Right Image")
 
 img_l_artist = None
 img_r_artist = None
+
+def reset (
+):
+    ekf_path["x"].clear ()
+    ekf_path["y"].clear ()
+    ekf_path["z"].clear ()
+
+    gt_path["x"].clear ()
+    gt_path["y"].clear ()
+    gt_path["z"].clear ()
+
+    ax_traj.cla ()
+    ax_traj.set_xlabel ('X (m)')
+    ax_traj.set_ylabel ('Y (m)')
+    ax_traj.set_zlabel ('Z (m)')
+    ax_traj.set_title ('Live VIO Trajectory')
+    ax_traj.legend ()
+
 
 def update_image (
     ax,

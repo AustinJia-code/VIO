@@ -34,7 +34,7 @@ int main ()
     {
         auto frames = player.get_next_stereo ();
         auto [l, r] = *frames;
-        uint64_t current_ts = l.time_ns;
+        current_ts = l.time_ns;
 
         auto new_batch = player.get_imu_until (current_ts);
         imu_batch.insert (imu_batch.end (),
@@ -85,6 +85,14 @@ int main ()
         // TODO: Handle camera offset from IMU?
         Pose cam_pose = vo.process_frame (l.img, r.img, l.time_ns);
         Pose global_pose = vo.get_global_pose ();
+        
+        Eigen::Matrix3d R_wc;
+        R_wc << 1,  0,  0,
+                0,  1,  0,
+                0,  0,  1;
+
+        global_pose.pos = (R_wc * global_pose.pos) + init_pos;
+        // global_pose.rot (R_wc * cam_pose.rot.toRotationMatrix ());
 
         ekf.update (global_pose);
 

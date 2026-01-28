@@ -587,6 +587,16 @@ public:
     }
 
     /**
+     * Set global pose
+     */
+    void set_global_pose (const Eigen::Vector3d& pos,
+                          const Eigen::Quaterniond& quat)
+    {
+        global_pos_ = pos;
+        global_rot_ = quat;
+    }
+
+    /**
      * Global pose w.r.t init
      */
     Pose get_global_pose () const
