@@ -67,6 +67,7 @@ int main ()
 
     /*** LOOP ***/
     Streamer streamer;
+    streamer.send_reset ();
     VisualOdometry vo ("../data/calib/euroc_calib.yaml",
                        "../data/euroc_datasets/machine_hall/MH_01_easy/mav0/cam0/sensor.yaml",
                        "../data/euroc_datasets/machine_hall/MH_01_easy/mav0/cam1/sensor.yaml");

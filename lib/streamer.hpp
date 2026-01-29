@@ -38,4 +38,17 @@ public:
         sendto (sock, &p, sizeof (p), 0, (struct sockaddr*) &servaddr,
                                           sizeof (servaddr));
     }
+
+    /**
+     * Send reset code
+     */
+    void send_reset ()
+    {
+        send (TelemetryPacket
+              {
+                -1.0, -1.0, -1.0,
+                -1.0, -1.0, -1.0,
+                ns_t {-1},
+              });
+    }
 };

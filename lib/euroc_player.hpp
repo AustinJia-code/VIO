@@ -24,7 +24,8 @@ private:
     // 1403636599913555456 idle start
     // 1403636623963555584 idle end
     // 1403636661163555584 rapid downward motion
-    size_t STARTING_TS = 1403636617513555456;
+    // 1403636718013555456 starting from rapid downward, this spot doesnt move
+    size_t STARTING_TS = 1403636599913555456; 
 
 public:
     EurocPlayer (std::string path) : root (path)

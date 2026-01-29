@@ -91,6 +91,10 @@ def update_plot (
             data, addr = sock.recvfrom (1024)
             v = struct.unpack ('ddddddL', data)
 
+            if (all (val == -1 for val in v)):
+                reset ()
+                continue
+
             ekf_path["x"].append (v[0])
             ekf_path["y"].append (v[1])
             ekf_path["z"].append (v[2])
