@@ -45,23 +45,25 @@ ax_r.set_title ("Right Image")
 img_l_artist = None
 img_r_artist = None
 
-def reset (
-):
-    ekf_path["x"].clear ()
-    ekf_path["y"].clear ()
-    ekf_path["z"].clear ()
-
-    gt_path["x"].clear ()
-    gt_path["y"].clear ()
-    gt_path["z"].clear ()
-
+def reset ():
+    global img_l_artist, img_r_artist
+    global ekf_path, gt_path
+    print ("Resetting")
+    ekf_path = {"x": [], "y": [], "z": []}
+    gt_path  = {"x": [], "y": [], "z": []}
+    
     ax_traj.cla ()
     ax_traj.set_xlabel ('X (m)')
     ax_traj.set_ylabel ('Y (m)')
     ax_traj.set_zlabel ('Z (m)')
-    ax_traj.set_title ('Live VIO Trajectory')
-    ax_traj.legend ()
-
+    ax_traj.set_title('Live VIO Trajectory')
+    
+    img_l_artist = None
+    img_r_artist = None
+    ax_l.cla ()
+    ax_r.cla ()
+    ax_l.set_title ("Left Image")
+    ax_r.set_title ("Right Image")
 
 def update_image (
     ax,
@@ -91,9 +93,9 @@ def update_plot (
             data, addr = sock.recvfrom (1024)
             v = struct.unpack ('ddddddL', data)
 
-            if (all (val == -1 for val in v)):
+            if (all (val == -1 for val in v[:5])):
                 reset ()
-                continue
+                return
 
             ekf_path["x"].append (v[0])
             ekf_path["y"].append (v[1])
@@ -113,10 +115,11 @@ def update_plot (
 
     # Traj
     ax_traj.cla ()
+    # ISSUE: No idea why 0, 0, 0 is plotted
     ax_traj.plot (gt_path["x"], gt_path["y"], gt_path["z"],
-                 'g-', label = 'Ground Truth', alpha=  0.7)
+                'g-', label = 'Ground Truth', alpha=  0.7)
     ax_traj.plot (ekf_path["x"], ekf_path["y"], ekf_path["z"],
-                 'r--', label = 'EKF Estimate', linewidth = 2)
+                'r--', label = 'EKF Estimate', linewidth = 2)
 
     ax_traj.scatter (ekf_path["x"][-1], ekf_path["y"][-1], ekf_path["z"][-1],
                      color = 'red', s = 50)

@@ -367,10 +367,9 @@ private:
         return result;
     }
     
-    Pose estimate_motion (const FeatureMatches& prev_features,
-                         const FeatureMatches& temporal_matches,
-                         const cv::Mat& prev_depth,
-                         ns_t timestamp_ns)
+    Pose estimate_motion (const FeatureMatches& temporal_matches,
+                          const cv::Mat& prev_depth,
+                          ns_t timestamp_ns)
     {
         Pose pose;
         pose.time_ns = timestamp_ns;
@@ -422,47 +421,49 @@ private:
         cv::Mat rvec, tvec;
         cv::Mat inliers;
         bool success = cv::solvePnPRansac
-        (
-            points_3d,
-            points_2d,
-            calib_.K1,
-            cv::Mat (), // No distortion
-            rvec,
-            tvec,
-            false,      // useExtrinsicGuess
-            100,        // iterationsCount
-            8.0,        // reprojectionError
-            0.99,       // confidence
-            inliers     // inliers
-        );
+                        (
+                            points_3d,
+                            points_2d,
+                            calib_.K1,
+                            cv::Mat (), // No distortion
+                            rvec,
+                            tvec,
+                            false,      // useExtrinsicGuess
+                            100,        // iterationsCount
+                            8.0,        // reprojectionError
+                            0.99,       // confidence
+                            inliers     // inliers
+                        );
         
         if (!success)
         {
             std::cerr << "ERROR: PnP failed!" << std::endl;
-            return pose;  // Return identity pose
+            return pose;
         }
         
         // Convert rotation vector to matrix
         cv::Mat R_cv;
         cv::Rodrigues (rvec, R_cv);
         
-        // Convert OpenCV rotation matrix to Eigen
+        // Convert to Eigen
         Eigen::Matrix3d R_eigen;
         for (int i = 0; i < 3; i++)
             for (int j = 0; j < 3; j++)
-                R_eigen (i, j) = R_cv.at<double> (i, j);
+                R_eigen(i, j) = R_cv.at<double> (i, j);
         
-        Eigen::Quaterniond quat (R_eigen);
-        
-        // Set pose
-        pose.rot = quat;
-        pose.pos = Eigen::Vector3d
+        Eigen::Vector3d t_cv
         (
             tvec.at<double> (0),
             tvec.at<double> (1),
             tvec.at<double> (2)
         );
         
+        // PnP gives transformation from world (t=0) to camera (t=1)
+        // We need camera motion from t=0 to t=1
+        // Camera position in world frame: -R^T * t
+        pose.rot = Eigen::Quaterniond (R_eigen.transpose ());  // Inverse rotation
+        pose.pos = -R_eigen.transpose () * t_cv;               // Camera motion
+
         return pose;
     }
 
@@ -493,58 +494,42 @@ public:
      *         Returns identity pose for first frame
      */
     Pose process_frame (const cv::Mat& left_img, 
-                       const cv::Mat& right_img,
-                       ns_t timestamp_ns)
+                   const cv::Mat& right_img,
+                   ns_t timestamp_ns)
     {
         Pose pose;
         pose.time_ns = timestamp_ns;
         
-        if (!calibrated_)
-        {
-            std::cerr << "ERROR: Visual Odometry not calibrated!" << std::endl;
-            return pose;  // Return identity pose
-        }
-        
-        if (left_img.empty () || right_img.empty ())
-        {
-            std::cerr << "ERROR: Empty images provided!" << std::endl;
+        if (!calibrated_ || left_img.empty () || right_img.empty ())
             return pose;
-        }
-    
+
         // Rectify images
         auto [curr_left_rect, curr_right_rect] = rectify_images (left_img, right_img);
         
         // Compute depth map for current frame
-        cv::Mat curr_depth = compute_depth_map (
-                                curr_left_rect, curr_right_rect);
-        
-        // Extract features from current left image
-        FeatureMatches curr_features = extract_and_match_features (
-                                                curr_left_rect, curr_left_rect);
+        cv::Mat curr_depth = compute_depth_map (curr_left_rect, curr_right_rect);
         
         // If this is the first frame, just store it
         if (!has_previous_frame_)
         {
             prev_left_rect_ = curr_left_rect.clone ();
             prev_depth_ = curr_depth.clone ();
-            prev_features_ = curr_features;
             has_previous_frame_ = true;
-            
-            std::cout << "First frame processed. Pose is identity." << std::endl;
-            return pose;  // Return identity pose
+            return pose;  // Identity pose
         }
         
         // Match features between previous and current frame
         FeatureMatches temporal_matches = extract_and_match_features (
                                                 prev_left_rect_, curr_left_rect);
         
-        // Estimate motion from previous to current frame
-        pose = estimate_motion (prev_features_, temporal_matches,
-                                prev_depth_, timestamp_ns);
+        // Estimate motion w/ PnP
+        pose = estimate_motion (temporal_matches, prev_depth_, timestamp_ns);
         
-        if (pose.pos.norm () > 0 ||
-            pose.rot.coeffs () != Eigen::Quaterniond::Identity ().coeffs ())
+        // Update global pose if motion was successfully estimated
+        if (pose.pos.norm () > 1e-6)  // Check if we got valid motion
         {
+            pose.pos[0] *= 10;
+            pose.pos[1] *= 10;
             global_pos_ = global_pos_ + global_rot_ * pose.pos;
             global_rot_ = global_rot_ * pose.rot;
             last_timestamp_ = timestamp_ns;
@@ -553,7 +538,6 @@ public:
         // Update previous frame
         prev_left_rect_ = curr_left_rect.clone ();
         prev_depth_ = curr_depth.clone ();
-        prev_features_ = curr_features;
         
         return pose;
     }

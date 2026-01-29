@@ -31,9 +31,9 @@ const std::string ROOT = "../data/euroc_datasets/machine_hall/MH_01_easy/mav0/";
 //     {"cam0/data/1403636579813555456.png", "cam1/data/1403636579813555456.png"};
 
 const std::pair<std::string, std::string> STEREO_0_PATH =
-    {"cam0/data/1403636583613555456.png", "cam1/data/1403636583613555456.png"};
+    {"cam0/data/1403636718013555456.png", "cam1/data/1403636718013555456.png"};
 const std::pair<std::string, std::string> STEREO_1_PATH =
-    {"cam0/data/1403636583663555584.png", "cam1/data/1403636583663555584.png"};
+    {"cam0/data/1403636718063555584.png", "cam1/data/1403636718063555584.png"};
 
 // Calibration files
 const std::string CALIB_STEREO = "../data/calib/euroc_calib.yaml";

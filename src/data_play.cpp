@@ -84,29 +84,43 @@ int main ()
 
         // Process Vision 
         // TODO: Handle camera offset from IMU?
-        Pose cam_pose = vo.process_frame (l.img, r.img, l.time_ns);
-        Pose global_pose = vo.get_global_pose ();
-        
-        Eigen::Matrix3d R_wc;
-        R_wc << 1,  0,  0,
-                0,  1,  0,
-                0,  0,  1;
+        Pose cam_pose = vo.process_frame(l.img, r.img, l.time_ns);
+        Pose global_pose = vo.get_global_pose();
 
-        global_pose.pos = (R_wc * global_pose.pos) + init_pos;
-        // global_pose.rot (R_wc * cam_pose.rot.toRotationMatrix ());
+        // Transform from camera frame to body frame using T_BS_cam0
+        cv::Mat T_BS = vo.get_calibration ().T_BS_cam0;  // You loaded this!
 
-        ekf.update (global_pose);
+        // Extract rotation and translation from T_BS
+        Eigen::Matrix3d R_BS;
+        Eigen::Vector3d t_BS;
+        for (int i = 0; i < 3; i++) {
+            t_BS(i) = T_BS.at<double>(i, 3);
+            for (int j = 0; j < 3; j++) {
+                R_BS(i, j) = T_BS.at<double>(i, j);
+            }
+        }
 
-        // Compare with Ground Truth
+        // Transform VO pose to body frame
+        Pose body_pose;
+        body_pose.pos = R_BS * global_pose.pos + t_BS + init_pos;
+        body_pose.rot = Eigen::Quaterniond (R_BS) * global_pose.rot;
+        body_pose.time_ns = global_pose.time_ns;
+
+        // global_pose.pos[0] *= -1;
+        // global_pose.pos[1] *= -1;
+
+        // Now body_pose should match ground truth frame
+        ekf.update(body_pose);
+
         Pose fused_state = ekf.get_estimate ();
         Eigen::Vector3d gt_pos = player.get_gt (current_ts);
 
         double drift = (fused_state.pos - gt_pos).norm ();
 
         // Telemetry
-        TelemetryPacket pkt = {global_pose.pos.x (),
-                               global_pose.pos.y (),
-                               global_pose.pos.z (),
+        TelemetryPacket pkt = {body_pose.pos.x (),
+                               body_pose.pos.y (),
+                               body_pose.pos.z (),
                                gt_pos.x (),
                                gt_pos.y (),
                                gt_pos.z (),
