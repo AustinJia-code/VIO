@@ -17,7 +17,14 @@ Live estimation: ```./live_play```\
 Dataset playback: ```./data_play```
 Visualizer: ```python ../tools/Plotter.py```
 
-### Todo:
+### Issues:
+* IMU physics fried
+* EKF fried
+* Cam seems to break down when initial features are lost?
+    * Verified from time 1403636661163555584, starting from beginning it stops
+      tracking here, but starting exactly on, tracking works.
+
+### Future Work:
 * Improve EKF
 * Thread
 * Tests
