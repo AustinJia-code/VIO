@@ -79,8 +79,8 @@ int main ()
         auto imu_batch = player.get_imu_until (current_ts);
 
         // EKF
-        // for (const IMUData& imu : imu_batch)
-        //     ekf.predict (imu);
+        for (const IMUData& imu : imu_batch)
+            ekf.predict (imu);
 
         // Process Vision 
         // TODO: Handle camera offset from IMU?
@@ -95,22 +95,26 @@ int main ()
         Eigen::Vector3d t_BS;
         for (int i = 0; i < 3; i++) {
             t_BS(i) = T_BS.at<double>(i, 3);
-            for (int j = 0; j < 3; j++) {
-                R_BS(i, j) = T_BS.at<double>(i, j);
-            }
+            // for (int j = 0; j < 3; j++) {
+            //     R_BS(i, j) = T_BS.at<double>(i, j);
+            // }
         }
 
+        R_BS << 1, 0, 0,
+                0, 1, 0,
+                0, 0, 1;
+                
         // Transform VO pose to body frame
         Pose body_pose;
         body_pose.pos = R_BS * global_pose.pos + t_BS + init_pos;
-        body_pose.rot = Eigen::Quaterniond (R_BS) * global_pose.rot;
+        body_pose.rot = init_rot * Eigen::Quaterniond (R_BS) * global_pose.rot;
         body_pose.time_ns = global_pose.time_ns;
 
         // global_pose.pos[0] *= -1;
         // global_pose.pos[1] *= -1;
 
         // Now body_pose should match ground truth frame
-        ekf.update(body_pose);
+        ekf.update (body_pose);
 
         Pose fused_state = ekf.get_estimate ();
         Eigen::Vector3d gt_pos = player.get_gt (current_ts);
