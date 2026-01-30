@@ -399,10 +399,10 @@ private:
                 
                 if (depth > 0.5 && depth < 50.0)
                 {
-                    // Back-project to 3D
+                    // Back-project to 3D using sub-pixel keypoint coordinates
                     float Z = depth;
-                    float X = (x - cx) * Z / fx;
-                    float Y = (y - cy) * Z / fy;
+                    float X = (pt_prev.x - cx) * Z / fx;
+                    float Y = (pt_prev.y - cy) * Z / fy;
                     
                     points_3d.push_back (cv::Point3f (X, Y, Z));
                     points_2d.push_back (pt_curr);
@@ -429,8 +429,8 @@ private:
                             rvec,
                             tvec,
                             false,      // useExtrinsicGuess
-                            100,        // iterationsCount
-                            8.0,        // reprojectionError
+                            200,        // iterationsCount
+                            3.0,        // reprojectionError
                             0.99,       // confidence
                             inliers     // inliers
                         );
@@ -528,8 +528,6 @@ public:
         // Update global pose if motion was successfully estimated
         if (pose.pos.norm () > 1e-6)  // Check if we got valid motion
         {
-            pose.pos[0] *= 10;
-            pose.pos[1] *= 10;
             global_pos_ = global_pos_ + global_rot_ * pose.pos;
             global_rot_ = global_rot_ * pose.rot;
             last_timestamp_ = timestamp_ns;

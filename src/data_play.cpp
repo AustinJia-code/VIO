@@ -95,14 +95,10 @@ int main ()
         Eigen::Vector3d t_BS;
         for (int i = 0; i < 3; i++) {
             t_BS(i) = T_BS.at<double>(i, 3);
-            // for (int j = 0; j < 3; j++) {
-            //     R_BS(i, j) = T_BS.at<double>(i, j);
-            // }
+            for (int j = 0; j < 3; j++) {
+                R_BS(i, j) = T_BS.at<double>(i, j);
+            }
         }
-
-        R_BS << 1, 0, 0,
-                0, 1, 0,
-                0, 0, 1;
                 
         // Transform VO pose to body frame
         Pose body_pose;
@@ -122,9 +118,9 @@ int main ()
         double drift = (fused_state.pos - gt_pos).norm ();
 
         // Telemetry
-        TelemetryPacket pkt = {body_pose.pos.x (),
-                               body_pose.pos.y (),
-                               body_pose.pos.z (),
+        TelemetryPacket pkt = {fused_state.pos.x (),
+                               fused_state.pos.y (),
+                               fused_state.pos.z (),
                                gt_pos.x (),
                                gt_pos.y (),
                                gt_pos.z (),

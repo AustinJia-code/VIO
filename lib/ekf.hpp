@@ -122,10 +122,11 @@ public:
         H.block<3,3> (3,6) = Eigen::Matrix3d::Identity (); // rotation maps to rotation
 
         // Measurement Noise R (cam trust)
+        // ORB stereo VO is accurate to ~10-20cm position, ~2-5deg rotation
         Eigen::Matrix<double, 6, 6> R;
         R.setZero ();
-        R.block<3,3> (0,0) = Eigen::Matrix3d::Identity () * 1e-4;
-        R.block<3,3> (3,3) = Eigen::Matrix3d::Identity () * 1e-5;
+        R.block<3,3> (0,0) = Eigen::Matrix3d::Identity () * 0.04;   // ~20cm std dev
+        R.block<3,3> (3,3) = Eigen::Matrix3d::Identity () * 0.005;  // ~4deg std dev
 
 
         // Kalman Gain: K = P * H^T * (H * P * H^T + R)^-1
