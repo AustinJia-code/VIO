@@ -329,83 +329,94 @@ private:
     }
     
     /**
-     * Get features from images
+     * Track features from prev to curr frame using Lucas-Kanade
      */
-    FeatureMatches extract_and_match_features (const cv::Mat& img1, const cv::Mat& img2)
+    std::pair<std::vector<cv::Point2f>, std::vector<cv::Point2f>>
+    track_features (const cv::Mat& prev_img, const cv::Mat& curr_img)
     {
-        FeatureMatches result;
-        
-        // Detect features using ORB
-        cv::Ptr<cv::ORB> detector = cv::ORB::create (2000);
-        detector->detectAndCompute (img1, cv::noArray (), result.keypoints1,
-                                                          result.descriptors1);
-        detector->detectAndCompute (img2, cv::noArray (), result.keypoints2,
-                                                          result.descriptors2);
-        
-        // Match features
-        cv::BFMatcher matcher (cv::NORM_HAMMING, true);  // crossCheck = true
-        matcher.match (result.descriptors1, result.descriptors2, result.matches);
-        
-        // Filter matches by distance
-        std::vector<cv::DMatch> good_matches;
-        float min_dist = 1000.0f, max_dist = 0.0f;
-        
-        for (const auto& m : result.matches)
+        // Detect corners in previous frame
+        std::vector<cv::Point2f> prev_corners;
+        cv::goodFeaturesToTrack (prev_img, prev_corners, 2000, 0.01, 10);
+
+        if (prev_corners.size () < 10)
+            return {{}, {}};
+
+        // Sub-pixel refinement
+        cv::cornerSubPix (prev_img, prev_corners, cv::Size (5, 5), cv::Size (-1, -1),
+                          cv::TermCriteria (cv::TermCriteria::EPS +
+                                           cv::TermCriteria::COUNT, 30, 0.01));
+
+        // Forward track: prev -> curr
+        std::vector<cv::Point2f> curr_corners;
+        std::vector<uchar> status_fwd;
+        std::vector<float> err_fwd;
+        cv::calcOpticalFlowPyrLK (prev_img, curr_img, prev_corners, curr_corners,
+                                  status_fwd, err_fwd, cv::Size (21, 21), 3);
+
+        // Backward track: curr -> prev (consistency check)
+        std::vector<cv::Point2f> back_corners;
+        std::vector<uchar> status_bwd;
+        std::vector<float> err_bwd;
+        cv::calcOpticalFlowPyrLK (curr_img, prev_img, curr_corners, back_corners,
+                                  status_bwd, err_bwd, cv::Size (21, 21), 3);
+
+        // Keep only points that pass forward-backward consistency
+        std::vector<cv::Point2f> good_prev, good_curr;
+        for (size_t i = 0; i < prev_corners.size (); i++)
         {
-            if (m.distance < min_dist)
-                min_dist = m.distance;
-            if (m.distance > max_dist)
-                max_dist = m.distance;
+            if (!status_fwd[i] || !status_bwd[i])
+                continue;
+
+            float fb_err = cv::norm (prev_corners[i] - back_corners[i]);
+            if (fb_err > 1.0)
+                continue;
+
+            if (curr_corners[i].x < 0 || curr_corners[i].x >= curr_img.cols ||
+                curr_corners[i].y < 0 || curr_corners[i].y >= curr_img.rows)
+                continue;
+
+            good_prev.push_back (prev_corners[i]);
+            good_curr.push_back (curr_corners[i]);
         }
-        
-        float threshold = std::min (std::max (2.5f * min_dist, 20.0f), 60.0f);
-        for (const auto& m : result.matches)
-            if (m.distance < threshold)
-                good_matches.push_back(m);
-        
-        result.matches = good_matches;
-        return result;
+
+        return {good_prev, good_curr};
     }
-    
-    Pose estimate_motion (const FeatureMatches& temporal_matches,
+
+    Pose estimate_motion (const std::vector<cv::Point2f>& prev_points,
+                          const std::vector<cv::Point2f>& curr_points,
                           const cv::Mat& prev_depth,
                           ns_t timestamp_ns)
     {
         Pose pose;
         pose.time_ns = timestamp_ns;
-        
+
         // Camera intrinsics
         double fx = calib_.K1.at<double> (0, 0);
         double fy = calib_.K1.at<double> (1, 1);
         double cx = calib_.K1.at<double> (0, 2);
         double cy = calib_.K1.at<double> (1, 2);
-        
+
         std::vector<cv::Point3f> points_3d;  // 3D positions at t-1
         std::vector<cv::Point2f> points_2d;  // 2D positions at t
-        
-        // For each temporal match, get 3D point from depth and 2D point at current frame
-        for (const auto& m : temporal_matches.matches)
+
+        for (size_t i = 0; i < prev_points.size (); i++)
         {
-            cv::Point2f pt_prev = temporal_matches.keypoints1[m.queryIdx].pt;
-            cv::Point2f pt_curr = temporal_matches.keypoints2[m.trainIdx].pt;
-            
-            // Get depth at previous frame
-            int x = static_cast<int> (pt_prev.x + 0.5);
-            int y = static_cast<int> (pt_prev.y + 0.5);
-            
+            int x = static_cast<int> (prev_points[i].x + 0.5);
+            int y = static_cast<int> (prev_points[i].y + 0.5);
+
             if (x >= 0 && x < prev_depth.cols && y >= 0 && y < prev_depth.rows)
             {
                 float depth = prev_depth.at<float> (y, x);
-                
+
                 if (depth > 0.5 && depth < 50.0)
                 {
-                    // Back-project to 3D using sub-pixel keypoint coordinates
+                    // Back-project to 3D using sub-pixel tracked coordinates
                     float Z = depth;
-                    float X = (pt_prev.x - cx) * Z / fx;
-                    float Y = (pt_prev.y - cy) * Z / fy;
-                    
+                    float X = (prev_points[i].x - cx) * Z / fx;
+                    float Y = (prev_points[i].y - cy) * Z / fy;
+
                     points_3d.push_back (cv::Point3f (X, Y, Z));
-                    points_2d.push_back (pt_curr);
+                    points_2d.push_back (curr_points[i]);
                 }
             }
         }
@@ -518,12 +529,11 @@ public:
             return pose;  // Identity pose
         }
         
-        // Match features between previous and current frame
-        FeatureMatches temporal_matches = extract_and_match_features (
-                                                prev_left_rect_, curr_left_rect);
-        
+        // Track features between previous and current frame
+        auto [prev_pts, curr_pts] = track_features (prev_left_rect_, curr_left_rect);
+
         // Estimate motion w/ PnP
-        pose = estimate_motion (temporal_matches, prev_depth_, timestamp_ns);
+        pose = estimate_motion (prev_pts, curr_pts, prev_depth_, timestamp_ns);
         
         // Update global pose if motion was successfully estimated
         if (pose.pos.norm () > 1e-6)  // Check if we got valid motion
