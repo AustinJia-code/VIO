@@ -72,6 +72,15 @@ int main ()
                        "../data/euroc_datasets/machine_hall/MH_01_easy/mav0/cam0/sensor.yaml",
                        "../data/euroc_datasets/machine_hall/MH_01_easy/mav0/cam1/sensor.yaml");
 
+    // Extract body-to-sensor rotation (constant)
+    // R_BS goes body->sensor, so R_SB = R_BS^T goes sensor->body
+    cv::Mat T_BS = vo.get_calibration ().T_BS_cam0;
+    Eigen::Matrix3d R_BS;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            R_BS(i, j) = T_BS.at<double>(i, j);
+    Eigen::Matrix3d R_SB = R_BS.transpose ();
+
     while (auto frames = player.get_next_stereo ())
     {
         auto [l, r] = *frames;
@@ -82,28 +91,14 @@ int main ()
         for (const IMUData& imu : imu_batch)
             ekf.predict (imu);
 
-        // Process Vision 
-        // TODO: Handle camera offset from IMU?
+        // Process Vision
         Pose cam_pose = vo.process_frame(l.img, r.img, l.time_ns);
         Pose global_pose = vo.get_global_pose();
 
-        // Transform from camera frame to body frame using T_BS_cam0
-        cv::Mat T_BS = vo.get_calibration ().T_BS_cam0;  // You loaded this!
-
-        // Extract rotation and translation from T_BS
-        Eigen::Matrix3d R_BS;
-        Eigen::Vector3d t_BS;
-        for (int i = 0; i < 3; i++) {
-            t_BS(i) = T_BS.at<double>(i, 3);
-            for (int j = 0; j < 3; j++) {
-                R_BS(i, j) = T_BS.at<double>(i, j);
-            }
-        }
-                
-        // Transform VO pose to body frame
         Pose body_pose;
-        body_pose.pos = R_BS * global_pose.pos + t_BS + init_pos;
-        body_pose.rot = init_rot * Eigen::Quaterniond (R_BS) * global_pose.rot;
+        body_pose.pos = init_pos + init_rot * (R_SB * global_pose.pos);
+        body_pose.rot = init_rot * Eigen::Quaterniond (R_SB) * global_pose.rot
+                        * Eigen::Quaterniond (R_BS);
         body_pose.time_ns = global_pose.time_ns;
 
         // global_pose.pos[0] *= -1;

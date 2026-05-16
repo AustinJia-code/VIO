@@ -115,7 +115,7 @@ def update_plot (
 
     # Traj
     ax_traj.cla ()
-    # ISSUE: No idea why 0, 0, 0 is plotted
+
     ax_traj.plot (gt_path["x"], gt_path["y"], gt_path["z"],
                 'g-', label = 'Ground Truth', alpha=  0.7)
     ax_traj.plot (ekf_path["x"], ekf_path["y"], ekf_path["z"],

@@ -31,7 +31,8 @@ public:
     {
         x.setZero ();
         x.segment<4> (6) << 0, 0, 0, 1; // Initial rotation
-        P.setIdentity () * 0.1;         // Start with some uncertainty
+        P.setIdentity ();
+        P *= 0.1;                       // Start with some uncertainty
 
         Q.setZero ();                   // TODO: Tune
         Q.diagonal () += Eigen::VectorXd::Constant (15, 0.001);
